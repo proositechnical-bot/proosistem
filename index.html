@@ -299,7 +299,63 @@
       </div>
     </div>
   </div>
+<!-- 5. Modal Επεξεργασίας Καθηγητή (Admin) -->
+  <div id="editTutorModal" class="hidden fixed inset-0 bg-black/50 z-30 flex items-end sm:items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white w-full max-w-md rounded-2xl p-5 space-y-3.5 shadow-xl my-auto">
+      <div>
+        <h2 class="font-bold text-lg text-slate-900">Επεξεργασία Καθηγητή</h2>
+        <p class="text-xs text-slate-500">Ενημέρωσε στοιχεία, email ή όρισε νέο κωδικό σύνδεσης.</p>
+      </div>
+      <input type="hidden" id="etId" />
+      <input type="hidden" id="etOldEmail" />
 
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="text-xs font-semibold text-slate-600">Ονοματεπώνυμο *</label>
+          <input id="etFullName" type="text" class="w-full mt-1 border rounded-lg p-2.5 text-sm" />
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-slate-600">Σύντομο Όνομα *</label>
+          <input id="etShortName" type="text" class="w-full mt-1 border rounded-lg p-2.5 text-sm" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="text-xs font-semibold text-slate-600">Τηλέφωνο</label>
+          <input id="etPhone" type="tel" placeholder="69..." class="w-full mt-1 border rounded-lg p-2.5 text-sm" />
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-slate-600">Ρόλος</label>
+          <select id="etRole" class="w-full mt-1 border rounded-lg p-2.5 text-sm">
+            <option value="tutor">Καθηγητής</option>
+            <option value="admin">Διαχειριστής (Admin)</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label class="text-xs font-semibold text-slate-600">Email Σύνδεσης</label>
+        <input id="etEmail" type="email" placeholder="name@proosistem.gr" class="w-full mt-1 border rounded-lg p-2.5 text-sm" />
+      </div>
+
+      <div>
+        <label class="text-xs font-semibold text-slate-600">Νέος Κωδικός Πρόσβασης</label>
+        <input id="etPassword" type="text" placeholder="Άφησε κενό για να μην αλλάξει (min 6 χαρ.)" class="w-full mt-1 border rounded-lg p-2.5 text-sm" />
+      </div>
+
+      <div>
+        <label class="text-xs font-semibold text-slate-600">Ειδικότητα / Σημειώσεις</label>
+        <input id="etNotes" type="text" placeholder="π.χ. Πολιτικός Μηχανικός / Στατική" class="w-full mt-1 border rounded-lg p-2.5 text-sm" />
+      </div>
+
+      <div class="flex gap-2 pt-2">
+        <button onclick="closeModal('editTutorModal')" class="flex-1 py-2.5 rounded-xl border border-slate-300 font-medium text-slate-700">Ακύρωση</button>
+        <button onclick="saveEditTutor()" id="etSaveBtn" class="flex-1 py-2.5 rounded-xl bg-red-800 text-white font-semibold">Αποθήκευση</button>
+      </div>
+    </div>
+  </div>
+  
   <script>
     const SUPABASE_URL = 'https://bjgmnxvkxyfntxdeqslh.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_suwNR0mKPuLIrvMbiTE5-g_Xuay6v-R';
@@ -875,15 +931,19 @@
               <div class="bg-white rounded-2xl p-4 shadow-sm border ${isActive ? 'border-slate-200' : 'border-rose-200 opacity-75'} space-y-2.5">
                 <div class="flex justify-between items-start">
                   <div>
-                    <div class="flex items-center gap-1.5">
+                    <div class="flex items-center gap-1.5 flex-wrap">
                       <h3 class="font-bold text-sm">${t.full_name || t.short_name}</h3>
                       ${roleBadge}
                       ${statusBadge}
                     </div>
                     <p class="text-xs text-slate-500 mt-0.5">Εμφάνιση: <strong>${t.short_name}</strong> • ${t.email ? t.email.trim() : 'Χωρίς email'}</p>
+                    ${(t.phone || t.notes) ? `<p class="text-[11px] text-slate-500 mt-0.5">${t.phone ? '📞 ' + t.phone : ''}${t.phone && t.notes ? ' • ' : ''}${t.notes || ''}</p>` : ''}
                   </div>
                 </div>
                 <div class="flex gap-2 pt-1">
+                  <button onclick="openEditTutorModal('${t.id}')" class="flex-1 py-2 rounded-xl text-xs font-semibold border border-slate-300 bg-slate-50 text-slate-800">
+                    Επεξεργασία
+                  </button>
                   <button onclick="toggleTutorActive('${t.id}', ${!isActive})" class="flex-1 py-2 rounded-xl text-xs font-semibold border ${isActive ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-emerald-300 bg-emerald-50 text-emerald-800'}">
                     ${isActive ? 'Απενεργοποίηση' : 'Ενεργοποίηση'}
                   </button>
@@ -896,7 +956,6 @@
 
           container.innerHTML = topBtn + list;
         }
-
         else if (currentTab === 'admin_prices') {
           const pkgRows = packages.map(p => {
             const isPkg = Number(p.package_hours) > 1;
@@ -1275,6 +1334,92 @@
       render();
     }
 
+    function openEditTutorModal(tutorId) {
+      const t = tutors.find(x => x.id === tutorId);
+      if (!t) return;
+      document.getElementById('etId').value = t.id;
+      document.getElementById('etOldEmail').value = t.email ? t.email.trim() : '';
+      document.getElementById('etFullName').value = t.full_name || '';
+      document.getElementById('etShortName').value = t.short_name || '';
+      document.getElementById('etPhone').value = t.phone || '';
+      document.getElementById('etRole').value = t.role || 'tutor';
+      document.getElementById('etEmail').value = t.email ? t.email.trim() : '';
+      document.getElementById('etPassword').value = '';
+      document.getElementById('etNotes').value = t.notes || '';
+      document.getElementById('editTutorModal').classList.remove('hidden');
+    }
+
+    async function saveEditTutor() {
+      const id = document.getElementById('etId').value;
+      const oldEmail = document.getElementById('etOldEmail').value.trim().toLowerCase();
+      const fullName = document.getElementById('etFullName').value.trim().toUpperCase();
+      const shortName = document.getElementById('etShortName').value.trim().toUpperCase();
+      const phone = document.getElementById('etPhone').value.trim() || null;
+      const role = document.getElementById('etRole').value;
+      const email = document.getElementById('etEmail').value.trim().toLowerCase() || null;
+      const password = document.getElementById('etPassword').value;
+      const notes = document.getElementById('etNotes').value.trim() || null;
+
+      if (!fullName || !shortName) {
+        alert('Συμπλήρωσε Ονοματεπώνυμο και Σύντομο Όνομα.');
+        return;
+      }
+      if (password && password.length < 6) {
+        alert('Ο νέος κωδικός πρέπει να έχει τουλάχιστον 6 χαρακτήρες.');
+        return;
+      }
+
+      const btn = document.getElementById('etSaveBtn');
+      btn.textContent = 'Αποθήκευση...';
+      btn.disabled = true;
+
+      const { error: dbErr } = await db.from('tutors').update({
+        full_name: fullName,
+        short_name: shortName,
+        phone,
+        role,
+        email,
+        notes
+      }).eq('id', id);
+
+      if (dbErr) {
+        btn.textContent = 'Αποθήκευση';
+        btn.disabled = false;
+        alert('Σφάλμα βάσης: ' + dbErr.message);
+        return;
+      }
+
+      let toastMsg = 'Τα στοιχεία ενημερώθηκαν!';
+      if (email) {
+        const { data: syncStatus, error: rpcErr } = await db.rpc('admin_sync_tutor_auth', {
+          p_old_email: oldEmail || null,
+          p_new_email: email,
+          p_new_password: password || null
+        });
+
+        if (rpcErr) {
+          toastMsg = 'Τα στοιχεία αποθηκεύτηκαν, αλλά υπήρξε σφάλμα στο Auth: ' + rpcErr.message;
+        } else if (syncStatus === 'NOT_FOUND') {
+          if (password) {
+            const { error: signUpErr } = await signUpClient.auth.signUp({ email, password });
+            toastMsg = signUpErr
+              ? 'Τα στοιχεία αποθηκεύτηκαν (έλεγξε τη δημιουργία λογαριασμού στο Supabase).'
+              : 'Ο λογαριασμός σύνδεσης ενεργοποιήθηκε!';
+          } else {
+            toastMsg = 'Τα στοιχεία αποθηκεύτηκαν (βάλε και κωδικό για να ενεργοποιηθεί η σύνδεση).';
+          }
+        } else if (password) {
+          toastMsg = 'Τα στοιχεία και ο νέος κωδικός ενημερώθηκαν!';
+        }
+      }
+
+      btn.textContent = 'Αποθήκευση';
+      btn.disabled = false;
+      closeModal('editTutorModal');
+      showToast(toastMsg);
+      await loadAllData();
+      render();
+    }
     async function updateTierRate(numStudents) {
       const val = Number(document.getElementById(`tier_${numStudents}`).value);
       const { error } = await db.from('tutor_rate_tiers').update({ total_hourly_rate: val }).eq('num_students', numStudents);
