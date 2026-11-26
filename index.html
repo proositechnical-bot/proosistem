@@ -4,21 +4,21 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="theme-color" content="#1e3a8a" />
-  <title>Πρόωση — Διαχείριση Καθηγητή</title>
+  <meta name="theme-color" content="#991b1b" />
+  <title>ΠΡΟΩΣΗ STEM — Διαχείριση Καθηγητή</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="bg-slate-100 text-slate-800 pb-24">
 
   <!-- Top Bar -->
-  <header class="bg-blue-900 text-white p-4 sticky top-0 z-20 shadow">
+  <header class="bg-red-800 text-white p-4 sticky top-0 z-20 shadow">
     <div class="max-w-lg mx-auto flex items-center justify-between gap-2">
       <div>
-        <h1 class="font-bold text-lg leading-tight">Πρόωση</h1>
-        <p class="text-xs text-blue-200">Πίνακας Καθηγητή</p>
+        <h1 class="font-bold text-lg leading-tight tracking-wide">ΠΡΟΩΣΗ STEM</h1>
+        <p class="text-xs text-red-200">Πίνακας Καθηγητή</p>
       </div>
-      <select id="tutorSelect" class="bg-blue-800 text-white text-sm rounded-lg px-3 py-1.5 border border-blue-700 outline-none">
+      <select id="tutorSelect" class="bg-red-900 text-white text-sm rounded-lg px-3 py-1.5 border border-red-700 outline-none">
         <option>Φόρτωση...</option>
       </select>
     </div>
@@ -60,7 +60,7 @@
         </div>
         <div class="flex items-end pb-2">
           <label class="flex items-center gap-2 text-sm cursor-pointer">
-            <input id="mUnistudents" type="checkbox" class="w-4 h-4 rounded" />
+            <input id="mUnistudents" type="checkbox" class="w-4 h-4 rounded accent-red-800" />
             <span>Unistudents</span>
           </label>
         </div>
@@ -73,7 +73,7 @@
 
       <div class="flex gap-2 pt-2">
         <button onclick="closeModal()" class="flex-1 py-2.5 rounded-xl border border-slate-300 font-medium text-slate-700">Ακύρωση</button>
-        <button onclick="saveHours()" class="flex-1 py-2.5 rounded-xl bg-blue-900 text-white font-semibold">Αποθήκευση</button>
+        <button onclick="saveHours()" class="flex-1 py-2.5 rounded-xl bg-red-800 text-white font-semibold">Αποθήκευση</button>
       </div>
     </div>
   </div>
@@ -81,7 +81,7 @@
   <!-- Bottom Navigation -->
   <nav class="fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 z-20">
     <div class="max-w-lg mx-auto grid grid-cols-3 text-xs font-medium">
-      <button onclick="setTab('active')" id="tab-active" class="py-3 flex flex-col items-center gap-1 text-blue-900 border-t-2 border-blue-900">
+      <button onclick="setTab('active')" id="tab-active" class="py-3 flex flex-col items-center gap-1 text-red-800 border-t-2 border-red-800 font-bold">
         <span>Ενεργά</span>
       </button>
       <button onclick="setTab('pending')" id="tab-pending" class="py-3 flex flex-col items-center gap-1 text-slate-500">
@@ -152,7 +152,7 @@
       ['active', 'pending', 'logs'].forEach(t => {
         const btn = document.getElementById(`tab-${t}`);
         if (t === tab) {
-          btn.className = 'py-3 flex flex-col items-center gap-1 text-blue-900 border-t-2 border-blue-900 font-bold';
+          btn.className = 'py-3 flex flex-col items-center gap-1 text-red-800 border-t-2 border-red-800 font-bold';
         } else {
           btn.className = 'py-3 flex flex-col items-center gap-1 text-slate-500';
         }
@@ -180,18 +180,18 @@
             <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-3">
               <div class="flex justify-between items-start gap-2">
                 <div>
-                  <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-800">${r.lesson_type || 'ΙΔΙΑΙΤΕΡΟ'}</span>
+                  <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-800">${r.lesson_type || 'ΙΔΙΑΙΤΕΡΟ'}</span>
                   <h3 class="font-bold text-base mt-1">${s.last_name || ''} ${s.first_name || ''}</h3>
                   <p class="text-sm text-slate-700 font-medium">${r.course_title_snapshot || ''}</p>
                   <p class="text-xs text-slate-500">${s.institution || ''} • ${s.department || ''}</p>
                 </div>
                 <div class="text-right shrink-0">
-                  <div class="text-lg font-extrabold text-blue-900">${hrs} ώρ.</div>
+                  <div class="text-lg font-extrabold text-red-800">${hrs} ώρ.</div>
                   <div class="text-[11px] text-slate-400">Σύνολο</div>
                 </div>
               </div>
               <div class="flex gap-2 pt-1">
-                <button onclick="openHoursModal('${r.id}')" class="flex-1 bg-blue-900 text-white py-2.5 rounded-xl font-semibold text-sm active:scale-95 transition">
+                <button onclick="openHoursModal('${r.id}')" class="flex-1 bg-red-800 text-white py-2.5 rounded-xl font-semibold text-sm active:scale-95 transition">
                   + Προσθήκη Ωρών
                 </button>
                 <button onclick="completeRequest('${r.id}')" class="px-3.5 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium border border-slate-200">
@@ -215,7 +215,7 @@
               <div>
                 <div class="flex justify-between items-center">
                   <span class="text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">${r.semester_label || ''}</span>
-                  ${s.phone ? `<a href="tel:${s.phone}" class="text-xs font-semibold text-blue-700 underline">📞 ${s.phone}</a>` : ''}
+                  ${s.phone ? `<a href="tel:${s.phone}" class="text-xs font-semibold text-red-700 underline">📞 ${s.phone}</a>` : ''}
                 </div>
                 <h3 class="font-bold text-base mt-1">${s.last_name || ''} ${s.first_name || ''}</h3>
                 <p class="text-sm text-slate-700 font-medium">${r.course_title_snapshot || ''}</p>
@@ -233,12 +233,12 @@
       else if (currentTab === 'logs') {
         const totalHrs = logs.reduce((s, l) => s + Number(l.hours || 0), 0);
         const header = `
-          <div class="bg-blue-900 text-white rounded-2xl p-4 flex justify-between items-center">
+          <div class="bg-red-800 text-white rounded-2xl p-4 flex justify-between items-center">
             <div>
-              <p class="text-xs text-blue-200">Συνολικές καταχωρημένες ώρες</p>
+              <p class="text-xs text-red-200">Συνολικές καταχωρημένες ώρες</p>
               <p class="text-2xl font-extrabold">${totalHrs} ώρες</p>
             </div>
-            <div class="text-xs text-blue-200">${logs.length} μαθήματα</div>
+            <div class="text-xs text-red-200">${logs.length} μαθήματα</div>
           </div>`;
 
         const list = logs.length ? logs.map(l => `
@@ -248,7 +248,7 @@
               <p class="font-bold text-sm">${l.students?.last_name || ''} ${l.students?.first_name || ''}</p>
               <p class="text-xs text-slate-600">${l.course_title} ${l.content ? '• ' + l.content : ''}</p>
             </div>
-            <div class="font-extrabold text-blue-900 text-base">${l.hours} ώρ.</div>
+            <div class="font-extrabold text-red-800 text-base">${l.hours} ώρ.</div>
           </div>`).join('') : '<p class="text-center text-slate-500 py-6 text-sm">Δεν έχουν καταχωρηθεί ώρες ακόμα.</p>';
 
         container.innerHTML = header + list;
