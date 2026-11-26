@@ -255,10 +255,60 @@
     </div>
   </div>
 
+  <!-- 4. Modal Νέου Καθηγητή (Admin) -->
+  <div id="newTutorModal" class="hidden fixed inset-0 bg-black/50 z-30 flex items-end sm:items-center justify-center p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl p-5 space-y-3.5 shadow-xl">
+      <div>
+        <h2 class="font-bold text-lg text-slate-900">Προσθήκη Καθηγητή</h2>
+        <p class="text-xs text-slate-500">Δημιουργεί αυτόματα τον λογαριασμό σύνδεσης για τον καθηγητή.</p>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="text-xs font-semibold text-slate-600">Ονοματεπώνυμο *</label>
+          <input id="ntFullName" type="text" placeholder="π.χ. ΚΥΡΙΜΗΣ ΣΠΥΡΟΣ" class="w-full mt-1 border rounded-lg p-2.5 text-sm" />
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-slate-600">Σύντομο Όνομα *</label>
+          <input id="ntShortName" type="text" placeholder="π.χ. ΚΥΡΙΜΗΣ Σ." class="w-full mt-1 border rounded-lg p-2.5 text-sm" />
+        </div>
+      </div>
+
+      <div>
+        <label class="text-xs font-semibold text-slate-600">Email Σύνδεσης *</label>
+        <input id="ntEmail" type="email" placeholder="spyros@gmail.com" class="w-full mt-1 border rounded-lg p-2.5 text-sm" />
+      </div>
+
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="text-xs font-semibold text-slate-600">Κωδικός (min 6 χαρ.) *</label>
+          <input id="ntPassword" type="text" placeholder="π.χ. Proosi2026!" class="w-full mt-1 border rounded-lg p-2.5 text-sm" />
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-slate-600">Ρόλος</label>
+          <select id="ntRole" class="w-full mt-1 border rounded-lg p-2.5 text-sm">
+            <option value="tutor">Καθηγητής</option>
+            <option value="admin">Διαχειριστής (Admin)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="flex gap-2 pt-2">
+        <button onclick="closeModal('newTutorModal')" class="flex-1 py-2.5 rounded-xl border border-slate-300 font-medium text-slate-700">Ακύρωση</button>
+        <button onclick="saveNewTutor()" id="ntSaveBtn" class="flex-1 py-2.5 rounded-xl bg-red-800 text-white font-semibold">Δημιουργία</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const SUPABASE_URL = 'https://bjgmnxvkxyfntxdeqslh.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_suwNR0mKPuLIrvMbiTE5-g_Xuay6v-R';
     const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Δευτερεύων client χωρίς αποθήκευση session, ώστε ο Admin να φτιάχνει χρήστες χωρίς να αποσυνδέεται
+    const signUpClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false }
+    });
 
     let currentUser = null;
     let userProfile = null;
@@ -281,7 +331,7 @@
       const el = document.getElementById('statusMsg');
       el.textContent = msg;
       el.classList.remove('hidden');
-      setTimeout(() => el.classList.add('hidden'), 3000);
+      setTimeout(() => el.classList.add('hidden'), 3500);
     }
 
     function closeModal(id) {
@@ -335,13 +385,13 @@
 
     async function initApp() {
       await loadAllData();
-      userProfile = tutors.find(t => t.email && t.email.toLowerCase() === currentUser.email.toLowerCase());
+      userProfile = tutors.find(t => t.email && t.email.trim().toLowerCase() === currentUser.email.toLowerCase() && t.is_active !== false);
 
       if (!userProfile) {
         document.getElementById('content').innerHTML = `
           <div class="bg-white p-5 rounded-2xl border border-red-200 text-center space-y-2">
-            <p class="font-bold text-red-800 text-sm">Ο λογαριασμός (${currentUser.email}) δεν έχει αντιστοιχιστεί ακόμα.</p>
-            <p class="text-xs text-slate-500">Ζήτησε από τον διαχειριστή να προσθέσει το email σου στη λίστα καθηγητών.</p>
+            <p class="font-bold text-red-800 text-sm">Ο λογαριασμός (${currentUser.email}) δεν είναι ενεργός.</p>
+            <p class="text-xs text-slate-500">Επικοινώνησε με τους διαχειριστές της ΠΡΟΩΣΗ STEM.</p>
           </div>`;
         return;
       }
@@ -353,8 +403,10 @@
 
       if (isAdminUser) {
         modeBtn.classList.remove('hidden');
-        sel.innerHTML = tutors.map(t => `<option value="${t.id}">${t.short_name}</option>`).join('');
-        currentTutorId = tutors[0]?.id || userProfile.id;
+        const activeTutors = tutors.filter(t => t.is_active !== false);
+        sel.innerHTML = activeTutors.map(t => `<option value="${t.id}">${t.short_name}</option>`).join('');
+        currentTutorId = userProfile.id;
+        sel.value = currentTutorId;
         sel.onchange = (e) => { currentTutorId = e.target.value; render(); };
 
         appMode = 'admin';
@@ -423,6 +475,9 @@
         sel.classList.add('hidden');
         currentTab = 'admin_requests';
       } else {
+        const activeTutors = tutors.filter(t => t.is_active !== false);
+        sel.innerHTML = activeTutors.map(t => `<option value="${t.id}">${t.short_name}</option>`).join('');
+        sel.value = currentTutorId;
         btn.textContent = 'Admin';
         sub.textContent = 'Πίνακας Καθηγητή';
         sel.classList.remove('hidden');
@@ -451,18 +506,18 @@
             { id: 'admin_cash', label: 'Ταμείο' },
             { id: 'admin_payments', label: 'Κινήσεις' },
             { id: 'admin_students', label: 'Φοιτητές' },
+            { id: 'admin_tutors', label: 'Καθηγητές' },
             { id: 'admin_prices', label: 'Τιμές' }
           ];
 
-      const gridClass = tabs.length === 3 ? 'grid-cols-3' : 'grid-cols-5';
-      nav.innerHTML = `<div class="max-w-xl mx-auto grid ${gridClass} text-xs font-medium">` +
+      const gridClass = tabs.length === 3 ? 'grid-cols-3' : 'grid-cols-6';
+      nav.innerHTML = `<div class="max-w-xl mx-auto grid ${gridClass} text-[11px] font-medium">` +
         tabs.map(t => `
-          <button onclick="setTab('${t.id}')" class="py-3 flex flex-col items-center gap-1 ${currentTab === t.id ? 'text-red-800 border-t-2 border-red-800 font-bold' : 'text-slate-500'}">
+          <button onclick="setTab('${t.id}')" class="py-3 px-0.5 flex flex-col items-center gap-1 ${currentTab === t.id ? 'text-red-800 border-t-2 border-red-800 font-bold' : 'text-slate-500'}">
             <span>${t.label}</span>
           </button>`).join('') + `</div>`;
     }
 
-    // Υπόλοιπο φοιτητή: Θετικό = Οφειλή, Αρνητικό = Κάβα (πιστωτικό υπόλοιπο)
     function getStudentBalance(student) {
       const prev = Number(student.previous_balance || 0);
       const upfrontPackages = requests
@@ -477,7 +532,6 @@
       return +(prev + upfrontPackages + hourlyCharged - credited).toFixed(2);
     }
 
-    // Υπολογισμός πίστωσης: Έκπτωση 10% ΜΟΝΟ μέχρι να καλυφθεί η οφειλή. Το πλεονάζον (κάβα) περνάει 1:1.
     function calcCreditedBreakdown(studentId, amount, receiptType) {
       if (receiptType !== 'ΧΩΡΙΣ ΑΠΟΔΕΙΞΗ') {
         return { credited: +amount.toFixed(2), debtCovered: 0, kavaAdded: 0, isSplit: false };
@@ -676,7 +730,7 @@
           const studentKavas = allWithBal.filter(s => s.bal < 0);
           const totalStudentDebt = +studentDebts.reduce((s, x) => s + x.bal, 0).toFixed(2);
 
-          const tutorOwed = tutors.filter(t => t.role !== 'admin').map(t => ({ ...t, bal: getTutorBalance(t.id) })).filter(t => t.bal > 0);
+          const tutorOwed = tutors.map(t => ({ ...t, bal: getTutorBalance(t.id) })).filter(t => t.bal > 0);
           const totalTutorOwed = +tutorOwed.reduce((s, x) => s + x.bal, 0).toFixed(2);
 
           const kavaCard = studentKavas.length ? `
@@ -800,6 +854,47 @@
                 </div>
               </div>`;
           }).join('') || '<p class="text-center text-slate-500 py-6 text-sm">Δεν υπάρχουν φοιτητές.</p>';
+        }
+
+        else if (currentTab === 'admin_tutors') {
+          const topBtn = `
+            <button onclick="openNewTutorModal()" class="w-full bg-red-800 text-white py-3 rounded-2xl font-bold text-sm shadow-sm active:scale-95 transition">
+              + Προσθήκη Νέου Καθηγητή
+            </button>`;
+
+          const list = tutors.map(t => {
+            const isActive = t.is_active !== false;
+            const roleBadge = t.role === 'admin'
+              ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-800">ADMIN</span>'
+              : '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">ΚΑΘΗΓΗΤΗΣ</span>';
+            const statusBadge = isActive
+              ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Ενεργός</span>'
+              : '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700">Ανενεργός</span>';
+
+            return `
+              <div class="bg-white rounded-2xl p-4 shadow-sm border ${isActive ? 'border-slate-200' : 'border-rose-200 opacity-75'} space-y-2.5">
+                <div class="flex justify-between items-start">
+                  <div>
+                    <div class="flex items-center gap-1.5">
+                      <h3 class="font-bold text-sm">${t.full_name || t.short_name}</h3>
+                      ${roleBadge}
+                      ${statusBadge}
+                    </div>
+                    <p class="text-xs text-slate-500 mt-0.5">Εμφάνιση: <strong>${t.short_name}</strong> • ${t.email ? t.email.trim() : 'Χωρίς email'}</p>
+                  </div>
+                </div>
+                <div class="flex gap-2 pt-1">
+                  <button onclick="toggleTutorActive('${t.id}', ${!isActive})" class="flex-1 py-2 rounded-xl text-xs font-semibold border ${isActive ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-emerald-300 bg-emerald-50 text-emerald-800'}">
+                    ${isActive ? 'Απενεργοποίηση' : 'Ενεργοποίηση'}
+                  </button>
+                  <button onclick="deleteTutor('${t.id}', '${t.short_name}')" class="px-3 py-2 rounded-xl text-xs font-semibold border border-rose-200 bg-rose-50 text-rose-700">
+                    Διαγραφή
+                  </button>
+                </div>
+              </div>`;
+          }).join('');
+
+          container.innerHTML = topBtn + list;
         }
 
         else if (currentTab === 'admin_prices') {
@@ -988,8 +1083,9 @@
 
     // --- ΛΕΙΤΟΥΡΓΙΕΣ ADMIN ---
     function openNewRequestModal() {
+      const activeTutors = tutors.filter(t => t.is_active !== false);
       document.getElementById('nrStudentSelect').innerHTML = students.map(s => `<option value="${s.id}">${s.last_name} ${s.first_name} (${s.institution || ''})</option>`).join('');
-      document.getElementById('nrTutorSelect').innerHTML = tutors.filter(t => t.role !== 'admin').map(t => `<option value="${t.id}">${t.short_name}</option>`).join('');
+      document.getElementById('nrTutorSelect').innerHTML = activeTutors.map(t => `<option value="${t.id}">${t.short_name}</option>`).join('');
       document.getElementById('nrPackageSelect').innerHTML = packages.map(p =>
         `<option value="${p.name}" data-hours="${p.package_hours}" data-price="${p.total_price}">${p.name} (${p.total_price}€)</option>`
       ).join('');
@@ -1085,6 +1181,91 @@
       render();
     }
 
+    // --- ΔΙΑΧΕΙΡΙΣΗ ΚΑΘΗΓΗΤΩΝ (ADMIN) ---
+    function openNewTutorModal() {
+      document.getElementById('ntFullName').value = '';
+      document.getElementById('ntShortName').value = '';
+      document.getElementById('ntEmail').value = '';
+      document.getElementById('ntPassword').value = '';
+      document.getElementById('ntRole').value = 'tutor';
+      document.getElementById('newTutorModal').classList.remove('hidden');
+    }
+
+    async function saveNewTutor() {
+      const fullName = document.getElementById('ntFullName').value.trim().toUpperCase();
+      const shortName = document.getElementById('ntShortName').value.trim().toUpperCase();
+      const email = document.getElementById('ntEmail').value.trim().toLowerCase();
+      const password = document.getElementById('ntPassword').value;
+      const role = document.getElementById('ntRole').value;
+
+      if (!fullName || !shortName || !email || password.length < 6) {
+        alert('Συμπλήρωσε όλα τα πεδία (ο κωδικός πρέπει να έχει τουλάχιστον 6 χαρακτήρες).');
+        return;
+      }
+
+      const btn = document.getElementById('ntSaveBtn');
+      btn.textContent = 'Δημιουργία...';
+      btn.disabled = true;
+
+      const { error: dbErr } = await db.from('tutors').upsert({
+        full_name: fullName,
+        short_name: shortName,
+        email,
+        role,
+        is_active: true
+      }, { onConflict: 'email' });
+
+      if (dbErr) {
+        btn.textContent = 'Δημιουργία';
+        btn.disabled = false;
+        alert('Σφάλμα βάσης: ' + dbErr.message);
+        return;
+      }
+
+      const { error: authErr } = await signUpClient.auth.signUp({ email, password });
+
+      btn.textContent = 'Δημιουργία';
+      btn.disabled = false;
+      closeModal('newTutorModal');
+
+      if (authErr && !authErr.message.toLowerCase().includes('already registered')) {
+        showToast('Ο καθηγητής προστέθηκε στη λίστα (έλεγξε το email στο Auth).');
+      } else {
+        showToast(`Ο λογαριασμός για ${shortName} δημιουργήθηκε!`);
+      }
+
+      await loadAllData();
+      render();
+    }
+
+    async function toggleTutorActive(tutorId, newState) {
+      if (tutorId === userProfile.id && !newState) {
+        alert('Δεν μπορείς να απενεργοποιήσεις τον δικό σου λογαριασμό.');
+        return;
+      }
+      const { error } = await db.from('tutors').update({ is_active: newState }).eq('id', tutorId);
+      if (error) { alert('Σφάλμα: ' + error.message); return; }
+      showToast(newState ? 'Ο καθηγητής ενεργοποιήθηκε!' : 'Η πρόσβαση του καθηγητή απενεργοποιήθηκε.');
+      await loadAllData();
+      render();
+    }
+
+    async function deleteTutor(tutorId, name) {
+      if (tutorId === userProfile.id) {
+        alert('Δεν μπορείς να διαγράψεις τον δικό σου λογαριασμό.');
+        return;
+      }
+      if (!confirm(`Να διαγραφεί οριστικά ο καθηγητής ${name}; (Αν έχει ιστορικό μαθημάτων, προτίμησε Απενεργοποίηση)`)) return;
+      const { error } = await db.from('tutors').delete().eq('id', tutorId);
+      if (error) {
+        alert('Δεν μπορεί να διαγραφεί επειδή έχει καταχωρημένα μαθήματα. Πάτα «Απενεργοποίηση» για να του κόψεις την πρόσβαση.');
+        return;
+      }
+      showToast('Ο καθηγητής διαγράφηκε.');
+      await loadAllData();
+      render();
+    }
+
     async function updatePackagePrice(id) {
       const val = Number(document.getElementById(`pkg_${id}`).value);
       const { error } = await db.from('pricing_packages').update({ total_price: val }).eq('id', id);
@@ -1119,7 +1300,7 @@
         updateCreditPreview();
       } else if (type === 'TUTOR_PAYOUT') {
         document.getElementById('pmTitle').textContent = 'Πληρωμή Καθηγητή';
-        document.getElementById('pmTutorSelect').innerHTML = tutors.filter(t => t.role !== 'admin').map(t => `<option value="${t.id}" ${t.id === entityId ? 'selected' : ''}>${t.short_name}</option>`).join('');
+        document.getElementById('pmTutorSelect').innerHTML = tutors.map(t => `<option value="${t.id}" ${t.id === entityId ? 'selected' : ''}>${t.short_name}</option>`).join('');
       } else {
         document.getElementById('pmTitle').textContent = 'Καταχώριση Εξόδου';
       }
