@@ -355,6 +355,75 @@
       </div>
     </div>
   </div>
+
+<!-- 5. Modal Επεξεργασίας Καθηγητή (Admin) -->
+  <div id="editTutorModal" class="hidden fixed inset-0 bg-black/50 z-30 flex items-end sm:items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white w-full max-w-md rounded-2xl p-5 space-y-3.5 shadow-xl my-auto">
+      <div>
+        <h2 class="font-bold text-lg text-slate-900">Επεξεργασία Καθηγητή</h2>
+        <p class="text-xs text-slate-500">Ενημέρωσε στοιχεία, email ή όρισε νέο κωδικό σύνδεσης.</p>
+      </div>
+      <input type="hidden" id="etId" />
+      <input type="hidden" id="etOldEmail" />
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="text-xs font-semibold text-slate-600">Ονοματεπώνυμο *</label>
+          <input id="etFullName" type="text" class="w-full mt-1 border rounded-lg p-2.5 text-sm" />
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-slate-600">Σύντομο Όνομα *</label>
+          <input id="etShortName" type="text" class="w-full mt-1 border rounded-lg p-2.5 text-sm" />
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="text-xs font-semibold text-slate-600">Τηλέφωνο</label>
+          <input id="etPhone" type="tel" placeholder="69..." class="w-full mt-1 border rounded-lg p-2.5 text-sm" />
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-slate-600">Ρόλος</label>
+          <select id="etRole" class="w-full mt-1 border rounded-lg p-2.5 text-sm">
+            <option value="tutor">Καθηγητής</option>
+            <option value="admin">Διαχειριστής (Admin)</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-slate-600">Email Σύνδεσης</label>
+        <input id="etEmail" type="email" placeholder="name@proosistem.gr" class="w-full mt-1 border rounded-lg p-2.5 text-sm" />
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-slate-600">Νέος Κωδικός Πρόσβασης</label>
+        <input id="etPassword" type="text" placeholder="Άφησε κενό για να μην αλλάξει (min 6 χαρ.)" class="w-full mt-1 border rounded-lg p-2.5 text-sm" />
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-slate-600">Ειδικότητα / Σημειώσεις</label>
+        <input id="etNotes" type="text" placeholder="π.χ. Πολιτικός Μηχανικός / Στατική" class="w-full mt-1 border rounded-lg p-2.5 text-sm" />
+      </div>
+      <div class="flex gap-2 pt-2">
+        <button onclick="closeModal('editTutorModal')" class="flex-1 py-2.5 rounded-xl border border-slate-300 font-medium text-slate-700">Ακύρωση</button>
+        <button onclick="saveEditTutor()" id="etSaveBtn" class="flex-1 py-2.5 rounded-xl bg-red-800 text-white font-semibold">Αποθήκευση</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. Modal Ημερολογίου Φοιτητή (Admin) -->
+  <div id="studentDiaryModal" class="hidden fixed inset-0 bg-black/50 z-30 flex items-end sm:items-center justify-center p-4">
+    <div class="bg-white w-full max-w-lg rounded-2xl p-5 shadow-xl max-h-[88vh] flex flex-col space-y-3.5">
+      <div class="flex justify-between items-start gap-2 border-b border-slate-100 pb-3">
+        <div>
+          <h2 id="sdTitle" class="font-bold text-lg text-slate-900"></h2>
+          <p id="sdSubtitle" class="text-xs text-slate-500"></p>
+        </div>
+        <span id="sdBadge" class="text-xs font-bold px-2.5 py-1 rounded-full shrink-0"></span>
+      </div>
+      <div id="sdSummary" class="grid grid-cols-3 gap-2 text-center"></div>
+      <div id="sdBody" class="overflow-y-auto space-y-2.5 pr-1 flex-1"></div>
+      <div class="pt-2 border-t border-slate-100">
+        <button onclick="closeModal('studentDiaryModal')" class="w-full py-2.5 rounded-xl bg-slate-800 text-white font-semibold text-sm">Κλείσιμο</button>
+      </div>
+    </div>
+  </div>
   
   <script>
     const SUPABASE_URL = 'https://bjgmnxvkxyfntxdeqslh.supabase.co';
@@ -380,8 +449,30 @@
     let requests = [];
     let logs = [];
     let payments = [];
-    let packages = [];
+   let packages = [];
     let rateTiers = [];
+    let expenseCategories = [];
+    let studentFilterTab = 'debt';
+    let studentSearchQuery = '';
+    let selectedSemester = 'ALL';
+
+    function inferSemesterFromDate(dateStr) {
+      if (!dateStr) return 'ΧΕΙΜ 26/27';
+      const parts = String(dateStr).slice(0, 10).split('-');
+      if (parts.length !== 3) return 'ΧΕΙΜ 26/27';
+      const y = Number(parts[0]), m = Number(parts[1]), d = Number(parts[2]);
+      if ((m === 9 && d >= 20) || m >= 10 || m === 1) {
+        const startY = m >= 9 ? y : y - 1;
+        return `ΧΕΙΜ ${String(startY).slice(-2)}/${String(startY + 1).slice(-2)}`;
+      }
+      if (m >= 2 && m <= 7) return `ΕΑΡ ${String(y).slice(-2)}`;
+      return `ΕΠΑΝ ${String(y).slice(-2)}`;
+    }
+
+    function getRecordSemester(rec) {
+      if (rec && rec.semester_label) return rec.semester_label;
+      return inferSemesterFromDate(rec?.payment_date || rec?.lesson_date || rec?.request_date);
+    }
 
     function showToast(msg) {
       const el = document.getElementById('statusMsg');
@@ -428,6 +519,1388 @@
         return;
       }
       await checkSession();
+    }
+
+    async function handleLogout() {
+      await db.auth.signOut();
+      currentUser = null;
+      userProfile = null;
+      isAdminUser = false;
+      document.getElementById('appShell').classList.add('hidden');
+      document.getElementById('loginScreen').classList.remove('hidden');
+    }
+
+    async function initApp() {
+      await loadAllData();
+      userProfile = tutors.find(t => t.email && t.email.trim().toLowerCase() === currentUser.email.toLowerCase() && t.is_active !== false);
+
+      if (!userProfile) {
+        document.getElementById('content').innerHTML = `
+          <div class="bg-white p-5 rounded-2xl border border-red-200 text-center space-y-2">
+            <p class="font-bold text-red-800 text-sm">Ο λογαριασμός (${currentUser.email}) δεν είναι ενεργός.</p>
+            <p class="text-xs text-slate-500">Επικοινώνησε με τους διαχειριστές της ΠΡΟΩΣΗ STEM.</p>
+          </div>`;
+        return;
+      }
+
+      isAdminUser = userProfile.role === 'admin';
+      const sel = document.getElementById('tutorSelect');
+      const badge = document.getElementById('tutorNameBadge');
+      const modeBtn = document.getElementById('modeToggleBtn');
+
+      if (isAdminUser) {
+        modeBtn.classList.remove('hidden');
+        const activeTutors = tutors.filter(t => t.is_active !== false);
+        sel.innerHTML = activeTutors.map(t => `<option value="${t.id}">${t.short_name}</option>`).join('');
+        currentTutorId = userProfile.id;
+        sel.value = currentTutorId;
+        sel.onchange = (e) => { currentTutorId = e.target.value; render(); };
+
+        appMode = 'admin';
+        currentTab = 'admin_requests';
+        modeBtn.textContent = 'Καθηγητής';
+        document.getElementById('headerSubtitle').textContent = 'Διαχείριση & Ταμείο';
+        sel.classList.add('hidden');
+        badge.classList.add('hidden');
+      } else {
+        appMode = 'tutor';
+        currentTab = 'active';
+        currentTutorId = userProfile.id;
+        modeBtn.classList.add('hidden');
+        sel.classList.add('hidden');
+        badge.textContent = userProfile.short_name;
+        badge.classList.remove('hidden');
+        document.getElementById('headerSubtitle').textContent = 'Πίνακας Καθηγητή';
+      }
+
+      renderNav();
+      render();
+    }
+
+    async function loadAllData() {
+      const [tRes, sRes, rRes, lRes, pRes, pkgRes, tierRes, catRes] = await Promise.all([
+        db.from('tutors').select('*').order('short_name'),
+        db.from('students').select('*').order('last_name'),
+        db.from('requests').select('*, students(last_name, first_name, phone, institution, department), tutors(short_name)').order('request_date', { ascending: false }),
+        db.from('lesson_logs').select('*, students(last_name, first_name), tutors(short_name)').order('lesson_date', { ascending: false }),
+        db.from('payments').select('*, students(last_name, first_name), tutors(short_name)').order('payment_date', { ascending: false }),
+        db.from('pricing_packages').select('*').order('sort_order'),
+        db.from('tutor_rate_tiers').select('*').order('num_students'),
+        db.from('expense_categories').select('*').order('sort_order')
+      ]);
+
+      tutors = tRes.data || [];
+      students = sRes.data || [];
+      requests = rRes.data || [];
+      logs = lRes.data || [];
+      payments = pRes.data || [];
+      packages = pkgRes.data || [];
+      rateTiers = tierRes.data || [];
+      expenseCategories = (catRes.data && catRes.data.length)
+        ? catRes.data
+        : ['ΚΑΡΤΟΚΙΝΗΤΟ', 'SECRETARY', 'ΛΟΓΙΣΤΡΙΑ', 'ΠΑΠΑΒΑΣΙΛΗΣ', 'UNISTUDENTS', 'ΔΙΑΦΗΜΙΣΗ/ΦΥΛΛΑΔΙΑ ΚΛΠ', 'CEO', 'ΦΟΡΟΣ', 'ROADCUBE', 'GOOGLE ADS', 'META', 'ΠΡΟΩΣΗ', 'ΑΝΑΛΩΣΙΜΑ', 'ΔΙΑΜΟΡΦΩΣΗ SITE', 'ΛΟΙΠΑ'].map((name, i) => ({ id: String(i), name, sort_order: i + 1 }));
+    }
+
+    function getTutorHourlyForGroup(numStudents) {
+      const n = Math.min(Math.max(Number(numStudents || 1), 1), 7);
+      const tier = rateTiers.find(t => t.num_students === n);
+      const fallback = { 1: 15, 2: 18, 3: 22, 4: 27, 5: 33, 6: 40, 7: 48 };
+      const groupTotal = tier ? Number(tier.total_hourly_rate) : fallback[n];
+      return groupTotal / n;
+    }
+
+    function getUsedHoursForRequest(reqId) {
+      return logs.filter(l => l.request_id === reqId).reduce((sum, l) => sum + Number(l.hours || 0), 0);
+    }
+
+    function toggleAppMode() {
+      if (!isAdminUser) return;
+      appMode = appMode === 'tutor' ? 'admin' : 'tutor';
+      const btn = document.getElementById('modeToggleBtn');
+      const sub = document.getElementById('headerSubtitle');
+      const sel = document.getElementById('tutorSelect');
+
+      if (appMode === 'admin') {
+        btn.textContent = 'Καθηγητής';
+        sub.textContent = 'Διαχείριση & Ταμείο';
+        sel.classList.add('hidden');
+        currentTab = 'admin_requests';
+      } else {
+        const activeTutors = tutors.filter(t => t.is_active !== false);
+        sel.innerHTML = activeTutors.map(t => `<option value="${t.id}">${t.short_name}</option>`).join('');
+        sel.value = currentTutorId;
+        btn.textContent = 'Admin';
+        sub.textContent = 'Πίνακας Καθηγητή';
+        sel.classList.remove('hidden');
+        currentTab = 'active';
+      }
+      renderNav();
+      render();
+    }
+
+    function setTab(tab) {
+      currentTab = tab;
+      renderNav();
+      render();
+    }
+
+    function renderNav() {
+      const nav = document.getElementById('bottomNav');
+      const tabs = appMode === 'tutor'
+        ? [
+            { id: 'active', label: 'Ενεργά' },
+            { id: 'pending', label: 'Επιθυμίες' },
+            { id: 'logs', label: 'Ώρες & Κέρδη' }
+          ]
+        : [
+            { id: 'admin_requests', label: 'Αναθέσεις' },
+            { id: 'admin_cash', label: 'Ταμείο' },
+            { id: 'admin_payments', label: 'Κινήσεις' },
+            { id: 'admin_students', label: 'Φοιτητές' },
+            { id: 'admin_tutors', label: 'Καθηγητές' },
+            { id: 'admin_prices', label: 'Τιμές' }
+          ];
+
+      const gridClass = tabs.length === 3 ? 'grid-cols-3' : 'grid-cols-6';
+      nav.innerHTML = `<div class="max-w-4xl mx-auto grid ${gridClass} text-[11px] font-medium">` +
+        tabs.map(t => `
+          <button onclick="setTab('${t.id}')" class="py-3 px-0.5 flex flex-col items-center gap-1 ${currentTab === t.id ? 'text-red-800 border-t-2 border-red-800 font-bold' : 'text-slate-500'}">
+            <span>${t.label}</span>
+          </button>`).join('') + `</div>`;
+    }
+
+    function getStudentBalance(student) {
+      const prev = Number(student.previous_balance || 0);
+      const upfrontPackages = requests
+        .filter(r => r.student_id === student.id && r.status !== 'ΑΚΥΡΩΘΗΚΕ')
+        .reduce((s, r) => s + Number(r.upfront_charge || 0), 0);
+      const hourlyCharged = logs
+        .filter(l => l.student_id === student.id)
+        .reduce((s, l) => s + Number(l.total_charge || 0), 0);
+      const credited = payments
+        .filter(p => p.student_id === student.id && p.type === 'STUDENT_PAYMENT')
+        .reduce((s, p) => s + Number(p.credited_amount || 0), 0);
+      return +(prev + upfrontPackages + hourlyCharged - credited).toFixed(2);
+    }
+
+    function calcCreditedBreakdown(studentId, amount, receiptType) {
+      if (receiptType !== 'ΧΩΡΙΣ ΑΠΟΔΕΙΞΗ') {
+        return { credited: +amount.toFixed(2), debtCovered: 0, kavaAdded: 0, isSplit: false };
+      }
+      const st = students.find(s => s.id === studentId);
+      const currentBal = st ? getStudentBalance(st) : 0;
+      const debt = Math.max(0, currentBal);
+      const maxDiscountedCash = +(debt * 0.9).toFixed(2);
+
+      if (amount <= maxDiscountedCash) {
+        return {
+          credited: +(amount / 0.9).toFixed(2),
+          debtCovered: +(amount / 0.9).toFixed(2),
+          kavaAdded: 0,
+          isSplit: false
+        };
+      } else {
+        const kavaAdded = +(amount - maxDiscountedCash).toFixed(2);
+        return {
+          credited: +(debt + kavaAdded).toFixed(2),
+          debtCovered: debt,
+          kavaAdded,
+          isSplit: debt > 0 && kavaAdded > 0
+        };
+      }
+    }
+
+    function getTutorBalance(tutorId) {
+      const earned = logs.filter(l => l.tutor_id === tutorId).reduce((s, l) => s + Number(l.tutor_earning || 0), 0);
+      const paid = payments.filter(p => p.tutor_id === tutorId && p.type === 'TUTOR_PAYOUT').reduce((s, p) => s + Number(p.amount || 0), 0);
+      return +(earned - paid).toFixed(2);
+    }
+
+    function renderSemesterResultsBlock() {
+      const allSems = new Set(['ΧΕΙΜ 26/27', 'ΕΠΑΝ 26', 'ΕΑΡ 26', 'ΧΕΙΜ 25/26']);
+      payments.forEach(p => allSems.add(getRecordSemester(p)));
+      logs.forEach(l => allSems.add(getRecordSemester(l)));
+      const semOptions = ['ALL', ...Array.from(allSems)];
+
+      const matchSem = rec => selectedSemester === 'ALL' || getRecordSemester(rec) === selectedSemester;
+
+      const semPayments = payments.filter(matchSem);
+      const semLogs = logs.filter(matchSem);
+
+      const esoda = +semPayments
+        .filter(p => p.type === 'STUDENT_PAYMENT' || p.type === 'OTHER_INCOME')
+        .reduce((s, p) => s + Number(p.amount || 0), 0).toFixed(2);
+
+      const esodaApodeixi = +semPayments
+        .filter(p => p.type === 'STUDENT_PAYMENT' && p.receipt_type === 'ΜΕ ΑΠΟΔΕΙΞΗ')
+        .reduce((s, p) => s + Number(p.amount || 0), 0).toFixed(2);
+
+      const exodaKiniseis = +semPayments
+        .filter(p => p.type === 'EXPENSE' || p.type === 'TUTOR_PAYOUT')
+        .reduce((s, p) => s + Number(p.amount || 0), 0).toFixed(2);
+
+      const tutorEarnedSem = +semLogs.reduce((s, l) => s + Number(l.tutor_earning || 0), 0).toFixed(2);
+      const estTax = +(esodaApodeixi * 0.22).toFixed(2);
+      const netCashResult = +(esoda - exodaKiniseis).toFixed(2);
+
+      return `
+        <div class="bg-white rounded-2xl p-4 border border-slate-200 space-y-3 shadow-sm">
+          <div class="flex flex-wrap justify-between items-center gap-2">
+            <div>
+              <h3 class="font-bold text-sm text-slate-900">Οικονομικά Αποτελέσματα Εξαμήνου</h3>
+              <p class="text-[11px] text-slate-400">Αυτόματος διαχωρισμός ανά περίοδο / εξάμηνο</p>
+            </div>
+            <select onchange="selectedSemester = this.value; render();" class="border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 bg-slate-50 outline-none">
+              ${semOptions.map(s => `<option value="${s}" ${selectedSemester === s ? 'selected' : ''}>${s === 'ALL' ? 'Όλα τα Εξάμηνα' : s}</option>`).join('')}
+            </select>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div class="bg-emerald-50/70 border border-emerald-200/70 rounded-xl p-3">
+              <p class="text-[11px] text-emerald-800 font-medium">Έσοδα Ταμείου</p>
+              <p class="text-lg font-extrabold text-emerald-700 mt-0.5">${esoda} €</p>
+              <p class="text-[10px] text-emerald-700/80">Με απόδειξη: ${esodaApodeixi}€</p>
+            </div>
+            <div class="bg-rose-50/70 border border-rose-200/70 rounded-xl p-3">
+              <p class="text-[11px] text-rose-800 font-medium">Έξοδα & Πληρωμές</p>
+              <p class="text-lg font-extrabold text-rose-700 mt-0.5">${exodaKiniseis} €</p>
+              <p class="text-[10px] text-rose-700/80">Δεδουλευμένες αμοιβές: ${tutorEarnedSem}€</p>
+            </div>
+            <div class="bg-amber-50/70 border border-amber-200/70 rounded-xl p-3">
+              <p class="text-[11px] text-amber-900 font-medium">Εκτιμ. Φόρος (22%)</p>
+              <p class="text-lg font-extrabold text-amber-700 mt-0.5">${estTax} €</p>
+              <p class="text-[10px] text-amber-800/80">Επί εσόδων με απόδειξη</p>
+            </div>
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
+              <p class="text-[11px] text-slate-600 font-medium">Καθαρή Ταμειακή Διαφορά</p>
+              <p class="text-lg font-extrabold ${netCashResult >= 0 ? 'text-emerald-700' : 'text-red-700'} mt-0.5">${netCashResult >= 0 ? '+' : ''}${netCashResult} €</p>
+              <p class="text-[10px] text-slate-400">Έσοδα − Έξοδα περιόδου</p>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function render() {
+      const container = document.getElementById('content');
+
+      // ================= ΠΡΟΒΟΛΗ ΚΑΘΗΓΗΤΗ =================
+      if (appMode === 'tutor') {
+        const myReqs = requests.filter(r => r.tutor_id === currentTutorId);
+        const myLogs = logs.filter(l => l.tutor_id === currentTutorId);
+
+        if (currentTab === 'active') {
+          const active = myReqs.filter(r => r.status === 'OK');
+          if (!active.length) {
+            container.innerHTML = '<p class="text-center text-slate-500 py-8 text-sm">Δεν υπάρχουν ενεργά μαθήματα.</p>';
+            return;
+          }
+          container.innerHTML = active.map(r => {
+            const s = r.students || {};
+            const hrs = getUsedHoursForRequest(r.id);
+            const pkgHrs = Number(r.package_hours || 0);
+            const isPkg = pkgHrs > 0;
+            const remaining = +(pkgHrs - hrs).toFixed(2);
+
+            const hoursBadge = isPkg
+              ? `<div class="text-base font-extrabold ${remaining <= 0 ? 'text-red-600' : 'text-red-800'}">${hrs} / ${pkgHrs} ώρ.</div>
+                 <div class="text-[11px] font-semibold ${remaining <= 0 ? 'text-red-600' : 'text-emerald-700'}">
+                   ${remaining > 0 ? `Υπόλοιπο: ${remaining} ώρ.` : 'Εξαντλήθηκε'}
+                 </div>`
+              : `<div class="text-lg font-extrabold text-red-800">${hrs} ώρ.</div>
+                 <div class="text-[11px] text-slate-400">Σύνολο</div>`;
+
+            return `
+              <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-3">
+                <div class="flex justify-between items-start gap-2">
+                  <div>
+                    <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-800">${r.lesson_type || 'ΙΔΙΑΙΤΕΡΟ ΜΑΘΗΜΑ'}</span>
+                    <h3 class="font-bold text-base mt-1">${s.last_name || ''} ${s.first_name || ''}</h3>
+                    <p class="text-sm text-slate-700 font-medium">${r.course_title_snapshot || ''}</p>
+                    <p class="text-xs text-slate-500">${s.institution || ''} • ${s.department || ''}</p>
+                  </div>
+                  <div class="text-right shrink-0">${hoursBadge}</div>
+                </div>
+                <div class="flex gap-2 pt-1">
+                  <button onclick="openHoursModal('${r.id}')" class="flex-1 bg-red-800 text-white py-2.5 rounded-xl font-semibold text-sm active:scale-95 transition">
+                    + Προσθήκη Ωρών
+                  </button>
+                  <button onclick="completeRequest('${r.id}')" class="px-3.5 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium border border-slate-200">
+                    Ολοκλήρωση
+                  </button>
+                </div>
+              </div>`;
+          }).join('');
+        }
+
+        else if (currentTab === 'pending') {
+          const pending = myReqs.filter(r => r.status === 'ΕΚΚΡΕΜΕΣ');
+          if (!pending.length) {
+            container.innerHTML = '<p class="text-center text-slate-500 py-8 text-sm">Δεν υπάρχουν εκκρεμείς επιθυμίες.</p>';
+            return;
+          }
+          container.innerHTML = pending.map(r => {
+            const s = r.students || {};
+            const pkgInfo = Number(r.package_hours || 0) > 0
+              ? `${r.lesson_type} (${r.package_hours} ώρες)`
+              : (r.lesson_type || 'ΙΔΙΑΙΤΕΡΟ ΜΑΘΗΜΑ');
+            return `
+              <div class="bg-white rounded-2xl p-4 shadow-sm border-l-4 border-amber-400 space-y-3">
+                <div>
+                  <div class="flex justify-between items-center">
+                    <span class="text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">${r.semester_label || ''}</span>
+                    ${s.phone ? `<a href="tel:${s.phone}" class="text-xs font-semibold text-red-700 underline">📞 ${s.phone}</a>` : ''}
+                  </div>
+                  <h3 class="font-bold text-base mt-1">${s.last_name || ''} ${s.first_name || ''}</h3>
+                  <p class="text-sm text-slate-700 font-medium">${r.course_title_snapshot || ''}</p>
+                  <p class="text-[11px] font-semibold text-red-800 mt-0.5">${pkgInfo}</p>
+                  ${r.student_comments ? `<p class="text-xs text-slate-500 mt-1 bg-slate-50 p-2 rounded-lg">«${r.student_comments}»</p>` : ''}
+                </div>
+                <button onclick="startRequest('${r.id}')" class="w-full bg-emerald-600 text-white py-2.5 rounded-xl font-semibold text-sm">
+                  ✓ Έναρξη Μαθήματος (OK)
+                </button>
+              </div>`;
+          }).join('');
+        }
+
+        else if (currentTab === 'logs') {
+          const totalHrs = myLogs.reduce((s, l) => s + Number(l.hours || 0), 0);
+          const unpaid = getTutorBalance(currentTutorId);
+          const header = `
+            <div class="bg-red-800 text-white rounded-2xl p-4 grid grid-cols-2 gap-3">
+              <div>
+                <p class="text-xs text-red-200">Σύνολο Ωρών</p>
+                <p class="text-2xl font-extrabold">${totalHrs} ώρ.</p>
+              </div>
+              <div class="text-right">
+                <p class="text-xs text-red-200">Υπόλοιπο προς Πίστωση</p>
+                <p class="text-2xl font-extrabold">${unpaid} €</p>
+              </div>
+            </div>`;
+
+          const list = myLogs.length ? myLogs.map(l => `
+            <div class="bg-white rounded-xl p-3.5 shadow-sm border border-slate-200 flex justify-between items-center">
+              <div>
+                <p class="text-xs text-slate-400">${l.lesson_date} • ${l.num_students || 1} άτ.</p>
+                <p class="font-bold text-sm">${l.students?.last_name || ''} ${l.students?.first_name || ''}</p>
+                <p class="text-xs text-slate-600">${l.course_title} ${l.content ? '• ' + l.content : ''}</p>
+              </div>
+              <div class="text-right">
+                <div class="font-extrabold text-red-800 text-sm">${l.hours} ώρ.</div>
+                <div class="text-xs text-emerald-700 font-semibold">+${l.tutor_earning || 0}€</div>
+              </div>
+            </div>`).join('') : '<p class="text-center text-slate-500 py-6 text-sm">Δεν έχουν καταχωρηθεί ώρες ακόμα.</p>';
+
+          container.innerHTML = header + list;
+        }
+      }
+
+      // ================= ΠΡΟΒΟΛΗ ADMIN =================
+      else {
+        if (currentTab === 'admin_requests') {
+          const topBtn = `
+            <button onclick="openNewRequestModal()" class="w-full bg-red-800 text-white py-3 rounded-2xl font-bold text-sm shadow-sm active:scale-95 transition">
+              + Νέα Επιθυμία / Ανάθεση Μαθήματος
+            </button>`;
+
+          const list = requests.map(r => {
+            const s = r.students || {};
+            const hrs = getUsedHoursForRequest(r.id);
+            const pkgHrs = Number(r.package_hours || 0);
+            const badge = r.status === 'OK'
+              ? 'bg-emerald-50 text-emerald-700'
+              : r.status === 'ΕΚΚΡΕΜΕΣ'
+                ? 'bg-amber-50 text-amber-700'
+                : 'bg-slate-100 text-slate-600';
+
+            const billingTag = pkgHrs > 0
+              ? `Εφάπαξ Πακέτο: ${Number(r.upfront_charge).toFixed(0)}€ (${hrs}/${pkgHrs} ώρ.)`
+              : `Ωριαία χρέωση: ${Number(r.student_hourly_rate).toFixed(2)}€/ώρ (${hrs} ώρ.)`;
+
+            return `
+              <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-1.5">
+                <div class="flex justify-between items-center">
+                  <span class="text-[11px] font-bold px-2 py-0.5 rounded-full ${badge}">${r.status}</span>
+                  <span class="text-xs font-bold text-red-800">${r.tutors?.short_name || 'Χωρίς ανάθεση'}</span>
+                </div>
+                <h3 class="font-bold text-sm">${s.last_name || ''} ${s.first_name || ''}</h3>
+                <p class="text-xs text-slate-700">${r.course_title_snapshot || ''}</p>
+                <p class="text-[11px] text-slate-500 font-medium">${r.lesson_type} • ${billingTag}</p>
+              </div>`;
+          }).join('');
+
+          container.innerHTML = topBtn + (list || '<p class="text-center text-slate-500 py-6 text-sm">Δεν υπάρχουν αιτήματα.</p>');
+        }
+
+        else if (currentTab === 'admin_cash') {
+          const totalIn = payments.filter(p => p.type === 'STUDENT_PAYMENT' || p.type === 'OTHER_INCOME').reduce((s, p) => s + Number(p.amount || 0), 0);
+          const totalOut = payments.filter(p => p.type === 'TUTOR_PAYOUT' || p.type === 'EXPENSE').reduce((s, p) => s + Number(p.amount || 0), 0);
+          const cashNow = +(totalIn - totalOut).toFixed(2);
+
+          const upfrontTurnover = requests.filter(r => r.status !== 'ΑΚΥΡΩΘΗΚΕ').reduce((s, r) => s + Number(r.upfront_charge || 0), 0);
+          const hourlyTurnover = logs.reduce((s, l) => s + Number(l.total_charge || 0), 0);
+          const totalTurnover = +(upfrontTurnover + hourlyTurnover).toFixed(2);
+
+          const allWithBal = students.map(s => ({ ...s, bal: getStudentBalance(s) }));
+          const studentDebts = allWithBal.filter(s => s.bal > 0);
+          const studentKavas = allWithBal.filter(s => s.bal < 0);
+          const totalStudentDebt = +studentDebts.reduce((s, x) => s + x.bal, 0).toFixed(2);
+
+          const tutorOwed = tutors.map(t => ({ ...t, bal: getTutorBalance(t.id) })).filter(t => t.bal > 0);
+          const totalTutorOwed = +tutorOwed.reduce((s, x) => s + x.bal, 0).toFixed(2);
+
+          const debtsCard = `
+            <div class="bg-white rounded-2xl p-4 border border-slate-200 space-y-2.5 shadow-sm">
+              <div class="flex justify-between items-center">
+                <h3 class="font-bold text-sm text-slate-800">Οφειλές Φοιτητών</h3>
+                <span class="text-xs font-extrabold text-amber-600">${totalStudentDebt} €</span>
+              </div>
+              ${studentDebts.length ? studentDebts.map(s => `
+                <div class="flex justify-between items-center py-2 border-b last:border-0 border-slate-100 gap-2">
+                  <div>
+                    <p class="font-bold text-sm">${s.last_name} ${s.first_name}</p>
+                    ${s.phone ? `<a href="tel:${s.phone}" class="text-xs text-red-700 underline">📞 ${s.phone}</a>` : ''}
+                  </div>
+                  <div class="flex items-center gap-2 shrink-0">
+                    <span class="font-extrabold text-amber-600 text-sm">${s.bal}€</span>
+                    <button onclick="openPaymentModal('STUDENT_PAYMENT', '${s.id}', ${s.bal})" class="text-xs bg-emerald-600 text-white px-2.5 py-1.5 rounded-lg font-semibold">+ Είσπραξη</button>
+                  </div>
+                </div>`).join('') : '<p class="text-xs text-slate-400">Καμία εκκρεμής οφειλή φοιτητή.</p>'}
+            </div>`;
+
+          const kavaCard = studentKavas.length ? `
+            <div class="bg-white rounded-2xl p-4 border border-blue-200 space-y-2 shadow-sm">
+              <h3 class="font-bold text-sm text-blue-900">Κάβες Φοιτητών (Πιστωτικά Υπόλοιπα)</h3>
+              ${studentKavas.map(s => `
+                <div class="flex justify-between items-center py-1.5 border-b last:border-0 border-slate-100">
+                  <p class="font-bold text-sm">${s.last_name} ${s.first_name}</p>
+                  <span class="font-extrabold text-blue-700 text-sm">${Math.abs(s.bal).toFixed(2)}€</span>
+                </div>`).join('')}
+            </div>` : '';
+
+          const tutorsCard = `
+            <div class="bg-white rounded-2xl p-4 border border-slate-200 space-y-2.5 shadow-sm">
+              <div class="flex justify-between items-center">
+                <h3 class="font-bold text-sm text-slate-800">Υπόλοιπα Καθηγητών</h3>
+                <span class="text-xs font-extrabold text-red-700">${totalTutorOwed} €</span>
+              </div>
+              ${tutorOwed.length ? tutorOwed.map(t => `
+                <div class="flex justify-between items-center py-2 border-b last:border-0 border-slate-100 gap-2">
+                  <p class="font-bold text-sm">${t.short_name}</p>
+                  <div class="flex items-center gap-2 shrink-0">
+                    <span class="font-extrabold text-red-700 text-sm">${t.bal}€</span>
+                    <button onclick="openPaymentModal('TUTOR_PAYOUT', '${t.id}', ${t.bal})" class="text-xs bg-slate-800 text-white px-2.5 py-1.5 rounded-lg font-semibold">Εξόφληση</button>
+                  </div>
+                </div>`).join('') : '<p class="text-xs text-slate-400">Όλοι οι καθηγητές είναι εξοφλημένοι.</p>'}
+            </div>`;
+
+          container.innerHTML = `
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div class="bg-red-800 text-white rounded-2xl p-4">
+                <p class="text-xs text-red-200">Τρέχον Ταμείο</p>
+                <p class="text-2xl font-extrabold mt-0.5">${cashNow} €</p>
+              </div>
+              <div class="bg-white rounded-2xl p-4 border border-slate-200">
+                <p class="text-xs text-slate-500">Συνολικός Τζίρος</p>
+                <p class="text-2xl font-extrabold text-slate-900 mt-0.5">${totalTurnover} €</p>
+              </div>
+              <div class="bg-white rounded-2xl p-4 border border-slate-200">
+                <p class="text-xs text-slate-500">Οφειλές Φοιτητών</p>
+                <p class="text-xl font-extrabold text-amber-600 mt-0.5">${totalStudentDebt} €</p>
+              </div>
+              <div class="bg-white rounded-2xl p-4 border border-slate-200">
+                <p class="text-xs text-slate-500">Υπόλοιπα Καθηγητών</p>
+                <p class="text-xl font-extrabold text-red-700 mt-0.5">${totalTutorOwed} €</p>
+              </div>
+            </div>
+
+            ${renderSemesterResultsBlock()}
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+              <div class="space-y-4">
+                ${debtsCard}
+                ${kavaCard}
+              </div>
+              <div>
+                ${tutorsCard}
+              </div>
+            </div>`;
+        }
+
+        else if (currentTab === 'admin_payments') {
+          const actions = `
+            <div class="grid grid-cols-3 gap-2">
+              <button onclick="openPaymentModal('STUDENT_PAYMENT')" class="bg-emerald-600 text-white py-2.5 px-2 rounded-xl font-bold text-xs">+ Είσπραξη</button>
+              <button onclick="openPaymentModal('TUTOR_PAYOUT')" class="bg-slate-800 text-white py-2.5 px-2 rounded-xl font-bold text-xs">- Καθηγητής</button>
+              <button onclick="openPaymentModal('EXPENSE')" class="bg-red-800 text-white py-2.5 px-2 rounded-xl font-bold text-xs">- Έξοδο</button>
+            </div>`;
+
+          const list = payments.map(p => {
+            const isIncome = p.type === 'STUDENT_PAYMENT' || p.type === 'OTHER_INCOME';
+            const semTag = getRecordSemester(p);
+            const label = p.type === 'STUDENT_PAYMENT'
+              ? `${p.students?.last_name || ''} ${p.students?.first_name || ''} (${p.receipt_type})`
+              : p.type === 'TUTOR_PAYOUT'
+                ? `Πληρωμή: ${p.tutors?.short_name || ''}`
+                : (p.expense_category || p.notes || 'Έξοδο');
+            const subNote = p.type === 'EXPENSE'
+              ? (p.notes && p.notes !== p.expense_category ? p.notes : '')
+              : (p.notes || '');
+
+            return `
+              <div class="bg-white rounded-xl p-3.5 shadow-sm border border-slate-200 flex justify-between items-center gap-2">
+                <div>
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-[11px] text-slate-400">${p.payment_date}</span>
+                    <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">${semTag}</span>
+                  </div>
+                  <p class="font-bold text-sm mt-0.5">${label}</p>
+                  ${subNote ? `<p class="text-xs text-slate-500">${subNote}</p>` : ''}
+                </div>
+                <div class="text-right shrink-0">
+                  <div class="font-extrabold text-sm ${isIncome ? 'text-emerald-600' : 'text-red-700'}">
+                    ${isIncome ? '+' : '-'}${p.amount}€
+                  </div>
+                  ${p.credited_amount != p.amount ? `<div class="text-[10px] text-slate-400">Πίστωση: ${p.credited_amount}€</div>` : ''}
+                </div>
+              </div>`;
+          }).join('');
+
+          container.innerHTML = actions + (list || '<p class="text-center text-slate-500 py-6 text-sm">Δεν υπάρχουν καταχωρημένες κινήσεις.</p>');
+        }
+
+        else if (currentTab === 'admin_students') {
+          container.innerHTML = `
+            <div class="space-y-3">
+              <div class="relative">
+                <input
+                  id="studentSearchInput"
+                  type="text"
+                  value="${studentSearchQuery}"
+                  oninput="studentSearchQuery = this.value; renderStudentsList()"
+                  placeholder="🔍 Αναζήτηση φοιτητή (όνομα, τηλέφωνο, σχολή)..."
+                  class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-3 text-sm outline-none focus:border-red-800 shadow-sm"
+                />
+              </div>
+              <div id="studentSubTabs" class="grid grid-cols-2 gap-2 bg-slate-200/70 p-1 rounded-xl"></div>
+              <div id="studentsListWrap" class="grid grid-cols-1 md:grid-cols-2 gap-2.5"></div>
+            </div>`;
+          renderStudentsList();
+        }
+
+        else if (currentTab === 'admin_tutors') {
+          const topBtn = `
+            <button onclick="openNewTutorModal()" class="w-full bg-red-800 text-white py-3 rounded-2xl font-bold text-sm shadow-sm active:scale-95 transition">
+              + Προσθήκη Νέου Καθηγητή
+            </button>`;
+
+          const list = tutors.map(t => {
+            const isActive = t.is_active !== false;
+            const roleBadge = t.role === 'admin'
+              ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-800">ADMIN</span>'
+              : '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">ΚΑΘΗΓΗΤΗΣ</span>';
+            const statusBadge = isActive
+              ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Ενεργός</span>'
+              : '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700">Ανενεργός</span>';
+
+            return `
+              <div class="bg-white rounded-2xl p-4 shadow-sm border ${isActive ? 'border-slate-200' : 'border-rose-200 opacity-75'} space-y-2.5">
+                <div class="flex justify-between items-start">
+                  <div>
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                      <h3 class="font-bold text-sm">${t.full_name || t.short_name}</h3>
+                      ${roleBadge}
+                      ${statusBadge}
+                    </div>
+                    <p class="text-xs text-slate-500 mt-0.5">Εμφάνιση: <strong>${t.short_name}</strong> • ${t.email ? t.email.trim() : 'Χωρίς email'}</p>
+                    ${(t.phone || t.notes) ? `<p class="text-[11px] text-slate-500 mt-0.5">${t.phone ? '📞 ' + t.phone : ''}${t.phone && t.notes ? ' • ' : ''}${t.notes || ''}</p>` : ''}
+                  </div>
+                </div>
+                <div class="flex gap-2 pt-1">
+                  <button onclick="openEditTutorModal('${t.id}')" class="flex-1 py-2 rounded-xl text-xs font-semibold border border-slate-300 bg-slate-50 text-slate-800">
+                    Επεξεργασία
+                  </button>
+                  <button onclick="toggleTutorActive('${t.id}', ${!isActive})" class="flex-1 py-2 rounded-xl text-xs font-semibold border ${isActive ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-emerald-300 bg-emerald-50 text-emerald-800'}">
+                    ${isActive ? 'Απενεργοποίηση' : 'Ενεργοποίηση'}
+                  </button>
+                  <button onclick="deleteTutor('${t.id}', '${t.short_name}')" class="px-3 py-2 rounded-xl text-xs font-semibold border border-rose-200 bg-rose-50 text-rose-700">
+                    Διαγραφή
+                  </button>
+                </div>
+              </div>`;
+          }).join('');
+
+          container.innerHTML = topBtn + `<div class="grid grid-cols-1 md:grid-cols-2 gap-3">${list}</div>`;
+        }
+
+        else if (currentTab === 'admin_prices') {
+          const pkgRows = packages.map(p => {
+            const isPkg = Number(p.package_hours) > 1;
+            const sub = isPkg
+              ? `${p.package_hours} ώρ. εφάπαξ (${Number(p.hourly_rate).toFixed(2)}€/ώρ) • Τμήμα 2+ ατόμων`
+              : p.name === 'ΕΛΕΥΘΕΡΟ ΤΜΗΜΑ'
+                ? 'Χρέωση ανά ώρα • Τμήμα 2+ ατόμων'
+                : 'Χρέωση ανά ώρα • 1 άτομο';
+            return `
+              <div class="flex justify-between items-center py-2.5 border-b last:border-0 border-slate-100">
+                <div>
+                  <p class="font-bold text-sm">${p.name}</p>
+                  <p class="text-[11px] text-slate-400">${sub}</p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <input id="pkg_${p.id}" type="number" step="0.5" value="${p.total_price}" class="w-20 border rounded-lg px-2 py-1 text-right font-bold text-sm" />
+                  <button onclick="updatePackagePrice('${p.id}')" class="bg-red-800 text-white text-xs px-2.5 py-1.5 rounded-lg font-semibold">OK</button>
+                </div>
+              </div>`;
+          }).join('');
+
+          const tierRows = rateTiers.map(t => `
+            <div class="flex justify-between items-center py-2 border-b last:border-0 border-slate-100">
+              <div>
+                <p class="font-bold text-sm">${t.num_students} ${t.num_students === 1 ? 'άτομο' : 'άτομα'}</p>
+                <p class="text-[11px] text-slate-400">${(Number(t.total_hourly_rate) / t.num_students).toFixed(2)} €/ώρα ανά φοιτητή</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <input id="tier_${t.num_students}" type="number" step="0.5" value="${t.total_hourly_rate}" class="w-20 border rounded-lg px-2 py-1 text-right font-bold text-sm" />
+                <button onclick="updateTierRate(${t.num_students})" class="bg-slate-800 text-white text-xs px-2.5 py-1.5 rounded-lg font-semibold">OK</button>
+              </div>
+            </div>`).join('');
+
+          const catRows = expenseCategories.map(c => `
+            <div class="flex justify-between items-center py-2 border-b last:border-0 border-slate-100 gap-2">
+              <input id="cat_name_${c.id}" type="text" value="${c.name}" class="flex-1 border rounded-lg px-2.5 py-1.5 text-xs font-bold uppercase" />
+              <button onclick="renameExpenseCategory('${c.id}')" class="bg-slate-800 text-white text-xs px-2.5 py-1.5 rounded-lg font-semibold">Αποθήκευση</button>
+              <button onclick="deleteExpenseCategory('${c.id}', '${c.name}')" class="bg-rose-50 text-rose-700 border border-rose-200 text-xs px-2.5 py-1.5 rounded-lg font-semibold">Διαγραφή</button>
+            </div>`).join('');
+
+          container.innerHTML = `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+              <div class="bg-white rounded-2xl p-4 border border-slate-200 space-y-2">
+                <h3 class="font-bold text-sm text-red-800">Πακέτα & Τιμές Φοιτητών (€)</h3>
+                ${pkgRows}
+              </div>
+              <div class="bg-white rounded-2xl p-4 border border-slate-200 space-y-2">
+                <h3 class="font-bold text-sm text-slate-800">Αμοιβή Καθηγητή ανά Ώρα (€ σύνολο group)</h3>
+                ${tierRows}
+              </div>
+            </div>
+
+            <div class="bg-white rounded-2xl p-4 border border-slate-200 space-y-3">
+              <div>
+                <h3 class="font-bold text-sm text-red-800">Κατηγορίες Εξόδων</h3>
+                <p class="text-[11px] text-slate-400">Πρόσθεσε, μετονόμασε ή διέγραψε κατηγορίες που εμφανίζονται στο «- Έξοδο».</p>
+              </div>
+              <div class="flex gap-2">
+                <input id="newExpCatInput" type="text" placeholder="Νέα κατηγορία εξόδου (π.χ. ΕΝΟΙΚΙΟ)..." class="flex-1 border rounded-xl px-3 py-2 text-xs font-semibold uppercase" />
+                <button onclick="addExpenseCategory()" class="bg-red-800 text-white text-xs font-bold px-4 py-2 rounded-xl">+ Προσθήκη</button>
+              </div>
+              <div class="divide-y divide-slate-100">${catRows}</div>
+            </div>`;
+        }
+      }
+    }
+
+    function renderStudentsList() {
+      const tabsEl = document.getElementById('studentSubTabs');
+      const listEl = document.getElementById('studentsListWrap');
+      if (!tabsEl || !listEl) return;
+
+      const q = studentSearchQuery.trim().toLowerCase();
+      const enriched = students.map(s => ({ ...s, bal: getStudentBalance(s) }));
+      const matchesQuery = s => {
+        if (!q) return true;
+        const hay = `${s.last_name || ''} ${s.first_name || ''} ${s.phone || ''} ${s.institution || ''} ${s.department || ''}`.toLowerCase();
+        return hay.includes(q);
+      };
+
+      const filteredAll = enriched.filter(matchesQuery);
+      const debtors = filteredAll.filter(s => s.bal > 0);
+      const paidUp = filteredAll.filter(s => s.bal <= 0);
+
+      tabsEl.innerHTML = `
+        <button onclick="studentFilterTab = 'debt'; renderStudentsList()" class="py-2 rounded-lg text-xs font-bold transition ${studentFilterTab === 'debt' ? 'bg-red-800 text-white shadow-sm' : 'text-slate-600'}">
+          Χρωστάνε (${debtors.length})
+        </button>
+        <button onclick="studentFilterTab = 'paid'; renderStudentsList()" class="py-2 rounded-lg text-xs font-bold transition ${studentFilterTab === 'paid' ? 'bg-emerald-700 text-white shadow-sm' : 'text-slate-600'}">
+          Εξοφλημένοι (${paidUp.length})
+        </button>`;
+
+      const shown = studentFilterTab === 'debt' ? debtors : paidUp;
+
+      if (!shown.length) {
+        listEl.innerHTML = `<p class="col-span-full text-center text-slate-500 py-8 text-sm">${q ? 'Δεν βρέθηκαν φοιτητές για αυτή την αναζήτηση.' : (studentFilterTab === 'debt' ? 'Κανένας φοιτητής δεν χρωστάει!' : 'Δεν υπάρχουν εξοφλημένοι φοιτητές.')}</p>`;
+        return;
+      }
+
+      listEl.innerHTML = shown.map(s => {
+        const stLogs = logs.filter(l => l.student_id === s.id);
+        const totalHrs = stLogs.reduce((sum, l) => sum + Number(l.hours || 0), 0);
+
+        let badgeClass = 'bg-emerald-50 text-emerald-700';
+        let badgeText = 'Εξοφλημένος';
+        if (s.bal > 0) {
+          badgeClass = 'bg-amber-50 text-amber-700';
+          badgeText = `Οφειλή: ${s.bal}€`;
+        } else if (s.bal < 0) {
+          badgeClass = 'bg-blue-50 text-blue-700';
+          badgeText = `Κάβα: ${Math.abs(s.bal).toFixed(2)}€`;
+        }
+
+        return `
+          <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-2.5">
+            <div class="flex justify-between items-start gap-2">
+              <div>
+                <h3 class="font-bold text-sm">${s.last_name} ${s.first_name}</h3>
+                <p class="text-xs text-slate-500">${s.institution || ''}${s.department ? ' • ' + s.department : ''}</p>
+                <div class="flex items-center gap-2 mt-1 text-xs">
+                  ${s.phone ? `<a href="tel:${s.phone}" class="text-red-700 underline">📞 ${s.phone}</a>` : ''}
+                  <span class="text-slate-400">• ${stLogs.length} μαθ. (${totalHrs} ώρ.)</span>
+                </div>
+              </div>
+              <span class="text-xs font-bold px-2.5 py-1 rounded-full shrink-0 ${badgeClass}">
+                ${badgeText}
+              </span>
+            </div>
+            <div class="flex gap-2 pt-1">
+              <button onclick="openStudentDiaryModal('${s.id}')" class="flex-1 py-2 rounded-xl text-xs font-semibold border border-slate-300 bg-slate-50 text-slate-800">
+                📅 Ημερολόγιο Μαθημάτων
+              </button>
+              ${s.bal > 0 ? `<button onclick="openPaymentModal('STUDENT_PAYMENT', '${s.id}', ${s.bal})" class="px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-600 text-white">+ Είσπραξη</button>` : ''}
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function openStudentDiaryModal(studentId) {
+      const s = students.find(x => x.id === studentId);
+      if (!s) return;
+
+      const bal = getStudentBalance(s);
+      const stLogs = logs.filter(l => l.student_id === s.id);
+      const stReqs = requests.filter(r => r.student_id === s.id && r.status !== 'ΑΚΥΡΩΘΗΚΕ');
+      const stPayments = payments.filter(p => p.student_id === s.id && p.type === 'STUDENT_PAYMENT');
+
+      const totalHrs = stLogs.reduce((sum, l) => sum + Number(l.hours || 0), 0);
+      const upfrontCharge = stReqs.reduce((sum, r) => sum + Number(r.upfront_charge || 0), 0);
+      const hourlyCharge = stLogs.reduce((sum, l) => sum + Number(l.total_charge || 0), 0);
+      const totalCharged = +(upfrontCharge + hourlyCharge).toFixed(2);
+      const totalCredited = +stPayments.reduce((sum, p) => sum + Number(p.credited_amount || 0), 0).toFixed(2);
+
+      document.getElementById('sdTitle').textContent = `${s.last_name} ${s.first_name}`;
+      document.getElementById('sdSubtitle').textContent = `${s.institution || ''}${s.department ? ' • ' + s.department : ''}${s.phone ? ' • ' + s.phone : ''}`;
+
+      const badgeEl = document.getElementById('sdBadge');
+      if (bal > 0) {
+        badgeEl.className = 'text-xs font-bold px-2.5 py-1 rounded-full shrink-0 bg-amber-50 text-amber-700';
+        badgeEl.textContent = `Οφειλή: ${bal}€`;
+      } else if (bal < 0) {
+        badgeEl.className = 'text-xs font-bold px-2.5 py-1 rounded-full shrink-0 bg-blue-50 text-blue-700';
+        badgeEl.textContent = `Κάβα: ${Math.abs(bal).toFixed(2)}€`;
+      } else {
+        badgeEl.className = 'text-xs font-bold px-2.5 py-1 rounded-full shrink-0 bg-emerald-50 text-emerald-700';
+        badgeEl.textContent = 'Εξοφλημένος';
+      }
+
+      document.getElementById('sdSummary').innerHTML = `
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-2">
+          <p class="text-[10px] text-slate-500">Σύνολο Ωρών</p>
+          <p class="font-extrabold text-sm text-red-800">${totalHrs} ώρ.</p>
+        </div>
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-2">
+          <p class="text-[10px] text-slate-500">Χρεώσεις</p>
+          <p class="font-extrabold text-sm text-slate-800">${totalCharged}€</p>
+        </div>
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-2">
+          <p class="text-[10px] text-slate-500">Πιστώσεις</p>
+          <p class="font-extrabold text-sm text-emerald-700">${totalCredited}€</p>
+        </div>`;
+
+      const reqsSection = stReqs.length ? `
+        <div class="bg-red-50/60 border border-red-100 rounded-xl p-3 space-y-1">
+          <p class="text-[11px] font-bold text-red-800">Ενεργά / Εκκρεμή Μαθήματα</p>
+          ${stReqs.map(r => `
+            <p class="text-xs text-slate-700">• <strong>${r.course_title_snapshot}</strong> (${r.tutors?.short_name || '-'} • ${r.status})</p>
+          `).join('')}
+        </div>` : '';
+
+      const logsSection = stLogs.length ? stLogs.map(l => `
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1">
+          <div class="flex justify-between items-center text-xs">
+            <span class="font-bold text-red-800">${l.lesson_date}</span>
+            <span class="font-semibold text-slate-600">${l.tutors?.short_name || ''} • ${l.hours} ώρ. (${l.num_students || 1} άτ.)</span>
+          </div>
+          <p class="font-bold text-xs text-slate-900">${l.course_title || ''}</p>
+          ${l.content ? `<p class="text-xs text-slate-600 bg-white p-2 rounded-lg border border-slate-100">${l.content}</p>` : ''}
+          <div class="flex justify-between items-center text-[11px] text-slate-500 pt-0.5">
+            <span>${l.category || ''}</span>
+            <span class="font-bold text-slate-700">${Number(l.total_charge || 0) > 0 ? l.total_charge + '€' : (String(l.category || '').includes('Πακέτο') ? 'Πακέτο' : '0€')}</span>
+          </div>
+        </div>`).join('') : '<p class="text-center text-slate-400 py-6 text-xs">Δεν έχουν καταχωρηθεί μαθήματα ακόμα.</p>';
+
+      document.getElementById('sdBody').innerHTML = reqsSection + logsSection;
+      document.getElementById('studentDiaryModal').classList.remove('hidden');
+    }
+
+    // --- ΛΕΙΤΟΥΡΓΙΕΣ ΚΑΘΗΓΗΤΗ ---
+    function openHoursModal(reqId) {
+      const r = requests.find(x => x.id === reqId);
+      if (!r) return;
+      document.getElementById('mRequestId').value = r.id;
+      document.getElementById('modalSubtitle').textContent = `${r.students?.last_name} ${r.students?.first_name} — ${r.course_title_snapshot}`;
+      document.getElementById('mDate').value = new Date().toISOString().split('T')[0];
+      document.getElementById('mHours').value = 2;
+
+      const isGroup = Number(r.package_hours || 0) > 1 || r.lesson_type === 'ΕΛΕΥΘΕΡΟ ΤΜΗΜΑ';
+      document.getElementById('mStudentsCount').value = isGroup ? 2 : 1;
+      document.getElementById('mContent').value = '';
+      document.getElementById('mUnistudents').checked = Boolean(r.is_unistudents || r.lesson_type === 'UNISTUDENTS');
+      document.getElementById('mPromo').checked = false;
+
+      const pkgBanner = document.getElementById('modalPackageInfo');
+      if (Number(r.package_hours || 0) > 0) {
+        const used = getUsedHoursForRequest(r.id);
+        const rem = +(Number(r.package_hours) - used).toFixed(2);
+        pkgBanner.textContent = `Προπληρωμένο Πακέτο: ${used} / ${r.package_hours} ώρ. (Υπόλοιπο: ${Math.max(0, rem)} ώρ.)`;
+        pkgBanner.classList.remove('hidden');
+      } else {
+        pkgBanner.classList.add('hidden');
+      }
+
+      updateHoursPreview();
+      document.getElementById('hoursModal').classList.remove('hidden');
+    }
+
+    function updateHoursPreview() {
+      const reqId = document.getElementById('mRequestId').value;
+      const r = requests.find(x => x.id === reqId);
+      const hours = Number(document.getElementById('mHours').value || 0);
+      const count = Number(document.getElementById('mStudentsCount').value || 1);
+      const isPromo = document.getElementById('mPromo').checked;
+      const ratePerStudent = getTutorHourlyForGroup(count);
+      const earning = +(hours * ratePerStudent).toFixed(2);
+
+      let chargeNote = '';
+      if (r) {
+        const pkgHrs = Number(r.package_hours || 0);
+        if (isPromo) {
+          chargeNote = 'Χρέωση φοιτητή: 0€ (Promo)';
+        } else if (pkgHrs > 0) {
+          const used = getUsedHoursForRequest(r.id);
+          const extraHrs = Math.max(0, (used + hours) - Math.max(used, pkgHrs));
+          chargeNote = extraHrs > 0
+            ? `Προσοχή: +${extraHrs} ώρ. εκτός πακέτου (χρέωση ${+(extraHrs * 25).toFixed(2)}€)`
+            : 'Χρέωση φοιτητή: 0€ (καλύπτεται από το πακέτο)';
+        } else {
+          const sRate = r.student_hourly_rate != null ? Number(r.student_hourly_rate) : 30;
+          chargeNote = `Χρέωση φοιτητή: ${+(hours * sRate).toFixed(2)}€`;
+        }
+      }
+
+      document.getElementById('hoursEarningPreview').innerHTML =
+        `<div>Αμοιβή καθηγητή (${count} άτ.): <strong>${ratePerStudent.toFixed(2)}€/ώρ × ${hours} ώρ. = ${earning}€</strong></div>
+         <div class="text-[11px] text-slate-500">${chargeNote}</div>`;
+    }
+
+    async function saveHours() {
+      const reqId = document.getElementById('mRequestId').value;
+      const r = requests.find(x => x.id === reqId);
+      if (!r) return;
+
+      const hours = Number(document.getElementById('mHours').value);
+      if (!hours || hours <= 0) { alert('Βάλε έγκυρες ώρες.'); return; }
+
+      const numStudents = Number(document.getElementById('mStudentsCount').value || 1);
+      const isUni = document.getElementById('mUnistudents').checked;
+      const isPromo = document.getElementById('mPromo').checked;
+      const pkgHrs = Number(r.package_hours || 0);
+
+      let totalCharge = 0;
+      if (!isPromo) {
+        if (pkgHrs > 0) {
+          const used = getUsedHoursForRequest(r.id);
+          const extraHrs = Math.max(0, (used + hours) - Math.max(used, pkgHrs));
+          totalCharge = +(extraHrs * 25).toFixed(2);
+        } else {
+          const sRate = r.student_hourly_rate != null ? Number(r.student_hourly_rate) : 30;
+          totalCharge = +(hours * sRate).toFixed(2);
+        }
+      }
+
+      const tRatePerStudent = getTutorHourlyForGroup(numStudents);
+      const tutorEarning = +(hours * tRatePerStudent).toFixed(2);
+      const effectiveValue = pkgHrs > 0 ? (hours * (Number(r.upfront_charge || 0) / pkgHrs)) : totalCharge;
+      const uniEarning = (!isPromo && isUni && effectiveValue > 0) ? +(effectiveValue * 0.15).toFixed(2) : 0;
+      const centerEarning = +(effectiveValue - tutorEarning - uniEarning).toFixed(2);
+
+      const payload = {
+        lesson_date: document.getElementById('mDate').value,
+        tutor_id: currentTutorId,
+        student_id: r.student_id,
+        request_id: r.id,
+        course_title: r.course_title_snapshot,
+        category: isPromo ? 'PROMO' : (r.lesson_type || 'ΙΔΙΑΙΤΕΡΟ ΜΑΘΗΜΑ'),
+        hours,
+        num_students: numStudents,
+        is_unistudents: isUni,
+        is_promo: isPromo,
+        total_charge: totalCharge,
+        tutor_earning: tutorEarning,
+        unistudents_earning: uniEarning,
+        center_earning: centerEarning,
+        content: document.getElementById('mContent').value.trim()
+      };
+
+      const { error } = await db.from('lesson_logs').insert(payload);
+      if (error) { alert('Σφάλμα: ' + error.message); return; }
+      closeModal('hoursModal');
+      showToast('Οι ώρες καταχωρήθηκαν!');
+      await loadAllData();
+      render();
+    }
+
+    async function startRequest(reqId) {
+      const { error } = await db.from('requests')
+        .update({ status: 'OK', start_date: new Date().toISOString().split('T')[0] })
+        .eq('id', reqId);
+      if (error) { alert('Σφάλμα: ' + error.message); return; }
+      showToast('Το μάθημα μεταφέρθηκε στα Ενεργά!');
+      await loadAllData();
+      setTab('active');
+    }
+
+    async function completeRequest(reqId) {
+      if (!confirm('Να δηλωθεί το μάθημα ως Ολοκληρωμένο;')) return;
+      const { error } = await db.from('requests')
+        .update({ status: 'ΟΛΟΚΛΗΡΩΘΗΚΕ' })
+        .eq('id', reqId);
+      if (error) { alert('Σφάλμα: ' + error.message); return; }
+      showToast('Το μάθημα ολοκληρώθηκε!');
+      await loadAllData();
+      render();
+    }
+
+    // --- ΛΕΙΤΟΥΡΓΙΕΣ ADMIN ---
+    function openNewRequestModal() {
+      const activeTutors = tutors.filter(t => t.is_active !== false);
+      document.getElementById('nrStudentSelect').innerHTML = students.map(s => `<option value="${s.id}">${s.last_name} ${s.first_name} (${s.institution || ''})</option>`).join('');
+      document.getElementById('nrTutorSelect').innerHTML = activeTutors.map(t => `<option value="${t.id}">${t.short_name}</option>`).join('');
+      document.getElementById('nrPackageSelect').innerHTML = packages.map(p =>
+        `<option value="${p.name}" data-hours="${p.package_hours}" data-price="${p.total_price}">${p.name} (${p.total_price}€)</option>`
+      ).join('');
+      document.getElementById('nrCourse').value = '';
+      document.getElementById('nrComments').value = '';
+      document.getElementById('nrIsUnistudents').checked = false;
+      onPackageChange();
+      toggleStudentMode('existing');
+      document.getElementById('newRequestModal').classList.remove('hidden');
+    }
+
+    function toggleStudentMode(mode) {
+      studentInputMode = mode;
+      document.getElementById('existingStudentBox').classList.toggle('hidden', mode !== 'existing');
+      document.getElementById('newStudentBox').classList.toggle('hidden', mode !== 'new');
+      document.getElementById('btnExistingStudent').className = mode === 'existing' ? 'flex-1 py-2 rounded-lg bg-red-800 text-white font-semibold' : 'flex-1 py-2 rounded-lg bg-slate-100 text-slate-700 font-semibold';
+      document.getElementById('btnNewStudent').className = mode === 'new' ? 'flex-1 py-2 rounded-lg bg-red-800 text-white font-semibold' : 'flex-1 py-2 rounded-lg bg-slate-100 text-slate-700 font-semibold';
+    }
+
+    function onPackageChange() {
+      const sel = document.getElementById('nrPackageSelect');
+      const opt = sel.options[sel.selectedIndex];
+      if (!opt) return;
+      const pkgHours = Number(opt.getAttribute('data-hours') || 1);
+      const price = Number(opt.getAttribute('data-price') || 30);
+
+      document.getElementById('nrAmountInput').value = price;
+      if (pkgHours > 1) {
+        document.getElementById('nrRateLabel').textContent = 'Εφάπαξ Ποσό Πακέτου (€)';
+        document.getElementById('nrBillingSummary').textContent =
+          `Τμήμα 2+ ατόμων • Ο φοιτητής χρεώνεται εξαρχής ${price}€ και δικαιούται ${pkgHours} ώρες μαθήματος.`;
+      } else {
+        const isOpenGroup = opt.value === 'ΕΛΕΥΘΕΡΟ ΤΜΗΜΑ';
+        document.getElementById('nrRateLabel').textContent = 'Χρέωση ανά Ώρα (€/ώρ)';
+        document.getElementById('nrBillingSummary').textContent = isOpenGroup
+          ? `Τμήμα 2+ ατόμων • Χρεώνεται ${price}€ ανά ώρα που πραγματοποιεί.`
+          : `Ιδιαίτερο 1 ατόμου • Χρεώνεται ${price}€ ανά ώρα που πραγματοποιεί.`;
+      }
+    }
+
+    async function saveNewRequest() {
+      let studentId = document.getElementById('nrStudentSelect').value;
+
+      if (studentInputMode === 'new') {
+        const lastName = document.getElementById('nsLastName').value.trim().toUpperCase();
+        const firstName = document.getElementById('nsFirstName').value.trim().toUpperCase();
+        if (!lastName || !firstName) { alert('Συμπλήρωσε Επίθετο και Όνομα φοιτητή.'); return; }
+
+        const { data: newS, error: sErr } = await db.from('students').insert({
+          last_name: lastName,
+          first_name: firstName,
+          institution: document.getElementById('nsInstitution').value.trim().toUpperCase(),
+          department: document.getElementById('nsDepartment').value.trim().toUpperCase(),
+          phone: document.getElementById('nsPhone').value.trim()
+        }).select().single();
+
+        if (sErr) { alert('Σφάλμα φοιτητή: ' + sErr.message); return; }
+        studentId = newS.id;
+      }
+
+      const course = document.getElementById('nrCourse').value.trim().toUpperCase();
+      if (!course) { alert('Συμπλήρωσε το Μάθημα.'); return; }
+
+      const sel = document.getElementById('nrPackageSelect');
+      const opt = sel.options[sel.selectedIndex];
+      const pkgName = opt.value;
+      const pkgHours = Number(opt.getAttribute('data-hours') || 1);
+      const enteredAmount = Number(document.getElementById('nrAmountInput').value);
+      const isUni = document.getElementById('nrIsUnistudents').checked;
+      const isPackage = pkgHours > 1;
+
+      const { error } = await db.from('requests').insert({
+        student_id: studentId,
+        course_title_snapshot: course,
+        tutor_id: document.getElementById('nrTutorSelect').value,
+        semester_label: document.getElementById('nrSemester').value.trim(),
+        lesson_type: pkgName,
+        package_hours: isPackage ? pkgHours : 0,
+        upfront_charge: isPackage ? enteredAmount : 0,
+        student_hourly_rate: isPackage ? 0 : enteredAmount,
+        tutor_hourly_rate: 15,
+        is_unistudents: isUni,
+        student_comments: document.getElementById('nrComments').value.trim(),
+        status: 'ΕΚΚΡΕΜΕΣ'
+      });
+
+      if (error) { alert('Σφάλμα ανάθεσης: ' + error.message); return; }
+      closeModal('newRequestModal');
+      showToast(isPackage
+        ? `Το πακέτο ανατέθηκε και χρεώθηκαν ${enteredAmount}€ εξαρχής!`
+        : 'Η επιθυμία ανατέθηκε στον καθηγητή!');
+      await loadAllData();
+      render();
+    }
+
+    // --- ΔΙΑΧΕΙΡΙΣΗ ΚΑΘΗΓΗΤΩΝ (ADMIN) ---
+    function openNewTutorModal() {
+      document.getElementById('ntFullName').value = '';
+      document.getElementById('ntShortName').value = '';
+      document.getElementById('ntEmail').value = '';
+      document.getElementById('ntPassword').value = '';
+      document.getElementById('ntRole').value = 'tutor';
+      document.getElementById('newTutorModal').classList.remove('hidden');
+    }
+
+    async function saveNewTutor() {
+      const fullName = document.getElementById('ntFullName').value.trim().toUpperCase();
+      const shortName = document.getElementById('ntShortName').value.trim().toUpperCase();
+      const email = document.getElementById('ntEmail').value.trim().toLowerCase();
+      const password = document.getElementById('ntPassword').value;
+      const role = document.getElementById('ntRole').value;
+
+      if (!fullName || !shortName || !email || password.length < 6) {
+        alert('Συμπλήρωσε όλα τα πεδία (ο κωδικός πρέπει να έχει τουλάχιστον 6 χαρακτήρες).');
+        return;
+      }
+
+      const btn = document.getElementById('ntSaveBtn');
+      btn.textContent = 'Δημιουργία...';
+      btn.disabled = true;
+
+      const { error: dbErr } = await db.from('tutors').upsert({
+        full_name: fullName,
+        short_name: shortName,
+        email,
+        role,
+        is_active: true
+      }, { onConflict: 'email' });
+
+      if (dbErr) {
+        btn.textContent = 'Δημιουργία';
+        btn.disabled = false;
+        alert('Σφάλμα βάσης: ' + dbErr.message);
+        return;
+      }
+
+      const { error: authErr } = await signUpClient.auth.signUp({ email, password });
+
+      btn.textContent = 'Δημιουργία';
+      btn.disabled = false;
+      closeModal('newTutorModal');
+
+      if (authErr && !authErr.message.toLowerCase().includes('already registered')) {
+        showToast('Ο καθηγητής προστέθηκε στη λίστα (έλεγξε το email στο Auth).');
+      } else {
+        showToast(`Ο λογαριασμός για ${shortName} δημιουργήθηκε!`);
+      }
+
+      await loadAllData();
+      render();
+    }
+
+    async function toggleTutorActive(tutorId, newState) {
+      if (tutorId === userProfile.id && !newState) {
+        alert('Δεν μπορείς να απενεργοποιήσεις τον δικό σου λογαριασμό.');
+        return;
+      }
+      const { error } = await db.from('tutors').update({ is_active: newState }).eq('id', tutorId);
+      if (error) { alert('Σφάλμα: ' + error.message); return; }
+      showToast(newState ? 'Ο καθηγητής ενεργοποιήθηκε!' : 'Η πρόσβαση του καθηγητή απενεργοποιήθηκε.');
+      await loadAllData();
+      render();
+    }
+
+    async function deleteTutor(tutorId, name) {
+      if (tutorId === userProfile.id) {
+        alert('Δεν μπορείς να διαγράψεις τον δικό σου λογαριασμό.');
+        return;
+      }
+      if (!confirm(`Να διαγραφεί οριστικά ο καθηγητής ${name}; (Αν έχει ιστορικό μαθημάτων, προτίμησε Απενεργοποίηση)`)) return;
+      const { error } = await db.from('tutors').delete().eq('id', tutorId);
+      if (error) {
+        alert('Δεν μπορεί να διαγραφεί επειδή έχει καταχωρημένα μαθήματα. Πάτα «Απενεργοποίηση» για να του κόψεις την πρόσβαση.');
+        return;
+      }
+      showToast('Ο καθηγητής διαγράφηκε.');
+      await loadAllData();
+      render();
+    }
+
+    function openEditTutorModal(tutorId) {
+      const t = tutors.find(x => x.id === tutorId);
+      if (!t) return;
+      document.getElementById('etId').value = t.id;
+      document.getElementById('etOldEmail').value = t.email ? t.email.trim() : '';
+      document.getElementById('etFullName').value = t.full_name || '';
+      document.getElementById('etShortName').value = t.short_name || '';
+      document.getElementById('etPhone').value = t.phone || '';
+      document.getElementById('etRole').value = t.role || 'tutor';
+      document.getElementById('etEmail').value = t.email ? t.email.trim() : '';
+      document.getElementById('etPassword').value = '';
+      document.getElementById('etNotes').value = t.notes || '';
+      document.getElementById('editTutorModal').classList.remove('hidden');
+    }
+
+    async function saveEditTutor() {
+      const id = document.getElementById('etId').value;
+      const oldEmail = document.getElementById('etOldEmail').value.trim().toLowerCase();
+      const fullName = document.getElementById('etFullName').value.trim().toUpperCase();
+      const shortName = document.getElementById('etShortName').value.trim().toUpperCase();
+      const phone = document.getElementById('etPhone').value.trim() || null;
+      const role = document.getElementById('etRole').value;
+      const email = document.getElementById('etEmail').value.trim().toLowerCase() || null;
+      const password = document.getElementById('etPassword').value;
+      const notes = document.getElementById('etNotes').value.trim() || null;
+
+      if (!fullName || !shortName) {
+        alert('Συμπλήρωσε Ονοματεπώνυμο και Σύντομο Όνομα.');
+        return;
+      }
+      if (password && password.length < 6) {
+        alert('Ο νέος κωδικός πρέπει να έχει τουλάχιστον 6 χαρακτήρες.');
+        return;
+      }
+
+      const btn = document.getElementById('etSaveBtn');
+      btn.textContent = 'Αποθήκευση...';
+      btn.disabled = true;
+
+      const { error: dbErr } = await db.from('tutors').update({
+        full_name: fullName,
+        short_name: shortName,
+        phone,
+        role,
+        email,
+        notes
+      }).eq('id', id);
+
+      if (dbErr) {
+        btn.textContent = 'Αποθήκευση';
+        btn.disabled = false;
+        alert('Σφάλμα βάσης: ' + dbErr.message);
+        return;
+      }
+
+      let toastMsg = 'Τα στοιχεία ενημερώθηκαν!';
+      if (email) {
+        const { data: syncStatus, error: rpcErr } = await db.rpc('admin_sync_tutor_auth', {
+          p_old_email: oldEmail || null,
+          p_new_email: email,
+          p_new_password: password || null
+        });
+
+        if (rpcErr) {
+          toastMsg = 'Τα στοιχεία αποθηκεύτηκαν, αλλά υπήρξε σφάλμα στο Auth: ' + rpcErr.message;
+        } else if (syncStatus === 'NOT_FOUND') {
+          if (password) {
+            const { error: signUpErr } = await signUpClient.auth.signUp({ email, password });
+            toastMsg = signUpErr
+              ? 'Τα στοιχεία αποθηκεύτηκαν (έλεγξε τη δημιουργία λογαριασμού στο Supabase).'
+              : 'Ο λογαριασμός σύνδεσης ενεργοποιήθηκε!';
+          } else {
+            toastMsg = 'Τα στοιχεία αποθηκεύτηκαν (βάλε και κωδικό για να ενεργοποιηθεί η σύνδεση).';
+          }
+        } else if (password) {
+          toastMsg = 'Τα στοιχεία και ο νέος κωδικός ενημερώθηκαν!';
+        }
+      }
+
+      btn.textContent = 'Αποθήκευση';
+      btn.disabled = false;
+      closeModal('editTutorModal');
+      showToast(toastMsg);
+      await loadAllData();
+      render();
+    }
+
+    async function updatePackagePrice(id) {
+      const val = Number(document.getElementById(`pkg_${id}`).value);
+      const { error } = await db.from('pricing_packages').update({ total_price: val }).eq('id', id);
+      if (error) { alert('Σφάλμα: ' + error.message); return; }
+      showToast('Η τιμή ενημερώθηκε!');
+      await loadAllData();
+      render();
+    }
+
+    async function updateTierRate(numStudents) {
+      const val = Number(document.getElementById(`tier_${numStudents}`).value);
+      const { error } = await db.from('tutor_rate_tiers').update({ total_hourly_rate: val }).eq('num_students', numStudents);
+      if (error) { alert('Σφάλμα: ' + error.message); return; }
+      showToast('Η αμοιβή καθηγητή ενημερώθηκε!');
+      await loadAllData();
+      render();
+    }
+
+    async function addExpenseCategory() {
+      const inp = document.getElementById('newExpCatInput');
+      const name = inp.value.trim().toUpperCase();
+      if (!name) { alert('Γράψε όνομα κατηγορίας.'); return; }
+      const { error } = await db.from('expense_categories').insert({ name, sort_order: expenseCategories.length + 1 });
+      if (error) { alert('Σφάλμα: ' + error.message); return; }
+      inp.value = '';
+      showToast('Η κατηγορία εξόδου προστέθηκε!');
+      await loadAllData();
+      render();
+    }
+
+    async function renameExpenseCategory(id) {
+      const inp = document.getElementById(`cat_name_${id}`);
+      const name = inp.value.trim().toUpperCase();
+      if (!name) { alert('Το όνομα δεν μπορεί να είναι κενό.'); return; }
+      const { error } = await db.from('expense_categories').update({ name }).eq('id', id);
+      if (error) { alert('Σφάλμα: ' + error.message); return; }
+      showToast('Η κατηγορία ενημερώθηκε!');
+      await loadAllData();
+      render();
+    }
+
+    async function deleteExpenseCategory(id, name) {
+      if (!confirm(`Να διαγραφεί η κατηγορία «${name}»;`)) return;
+      const { error } = await db.from('expense_categories').delete().eq('id', id);
+      if (error) { alert('Σφάλμα: ' + error.message); return; }
+      showToast('Η κατηγορία διαγράφηκε.');
+      await loadAllData();
+      render();
+    }
+
+    function openPaymentModal(type, entityId = '', defaultAmount = '') {
+      document.getElementById('pmType').value = type;
+      const todayStr = new Date().toISOString().split('T')[0];
+      document.getElementById('pmDate').value = todayStr;
+      document.getElementById('pmAmount').value = defaultAmount;
+      document.getElementById('pmNotes').value = '';
+
+      document.getElementById('pmStudentWrap').classList.toggle('hidden', type !== 'STUDENT_PAYMENT');
+      document.getElementById('pmReceiptWrap').classList.toggle('hidden', type !== 'STUDENT_PAYMENT');
+      document.getElementById('pmTutorWrap').classList.toggle('hidden', type !== 'TUTOR_PAYOUT');
+
+      let catSelect = document.getElementById('pmExpCategory');
+      if (!catSelect) {
+        const notesInput = document.getElementById('pmNotes');
+        const notesParent = notesInput.parentElement;
+        const wrap = document.createElement('div');
+        wrap.id = 'pmExpCatWrap';
+        wrap.className = 'hidden';
+        wrap.innerHTML = `<label class="text-xs font-semibold text-slate-600">Κατηγορία Εξόδου</label><select id="pmExpCategory" class="w-full mt-1 border rounded-lg p-2.5 text-sm"></select>`;
+        notesParent.parentElement.insertBefore(wrap, notesParent);
+        catSelect = document.getElementById('pmExpCategory');
+      }
+
+      const isExpense = type === 'EXPENSE';
+      document.getElementById('pmExpCatWrap').classList.toggle('hidden', !isExpense);
+      if (isExpense) {
+        catSelect.innerHTML = expenseCategories.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+      }
+
+      if (type === 'STUDENT_PAYMENT') {
+        document.getElementById('pmTitle').textContent = 'Είσπραξη από Φοιτητή';
+        document.getElementById('pmStudentSelect').innerHTML = students.map(s => `<option value="${s.id}" ${s.id === entityId ? 'selected' : ''}>${s.last_name} ${s.first_name}</option>`).join('');
+        updateCreditPreview();
+      } else if (type === 'TUTOR_PAYOUT') {
+        document.getElementById('pmTitle').textContent = 'Πληρωμή Καθηγητή';
+        document.getElementById('pmTutorSelect').innerHTML = tutors.map(t => `<option value="${t.id}" ${t.id === entityId ? 'selected' : ''}>${t.short_name}</option>`).join('');
+      } else {
+        document.getElementById('pmTitle').textContent = 'Καταχώριση Εξόδου';
+      }
+
+      document.getElementById('paymentModal').classList.remove('hidden');
+    }
+
+    function updateCreditPreview() {
+      const amt = Number(document.getElementById('pmAmount').value || 0);
+      const rec = document.getElementById('pmReceipt').value;
+      const studentId = document.getElementById('pmStudentSelect').value;
+      const previewEl = document.getElementById('pmCreditPreview');
+
+      if (!amt || amt <= 0) {
+        previewEl.textContent = '';
+        return;
+      }
+
+      const res = calcCreditedBreakdown(studentId, amt, rec);
+      if (rec === 'ΧΩΡΙΣ ΑΠΟΔΕΙΞΗ' && res.isSplit) {
+        previewEl.innerHTML = `Εξόφληση οφειλής ${res.debtCovered.toFixed(2)}€ (με ${(res.debtCovered * 0.9).toFixed(2)}€) + Κάβα ${res.kavaAdded.toFixed(2)}€ (χωρίς έκπτωση) = <strong>Σύνολο πίστωσης: ${res.credited.toFixed(2)}€</strong>`;
+      } else if (rec === 'ΧΩΡΙΣ ΑΠΟΔΕΙΞΗ' && res.debtCovered === 0) {
+        previewEl.innerHTML = `Χωρίς τρέχουσα οφειλή: <strong>Κάβα ${res.credited.toFixed(2)}€ (1:1 χωρίς έκπτωση)</strong>`;
+      } else {
+        previewEl.innerHTML = `Πίστωση στην καρτέλα φοιτητή: <strong>${res.credited.toFixed(2)} €</strong>`;
+      }
+    }
+
+    async function savePayment() {
+      const type = document.getElementById('pmType').value;
+      const amount = Number(document.getElementById('pmAmount').value);
+      if (!amount || amount <= 0) { alert('Βάλε έγκυρο ποσό.'); return; }
+
+      const payDate = document.getElementById('pmDate').value;
+      const rec = document.getElementById('pmReceipt').value;
+      const studentId = type === 'STUDENT_PAYMENT' ? document.getElementById('pmStudentSelect').value : null;
+      const credited = type === 'STUDENT_PAYMENT'
+        ? calcCreditedBreakdown(studentId, amount, rec).credited
+        : amount;
+
+      const expCat = type === 'EXPENSE' ? (document.getElementById('pmExpCategory')?.value || 'ΛΟΙΠΑ') : null;
+      const rawNote = document.getElementById('pmNotes').value.trim();
+      const finalNote = type === 'EXPENSE'
+        ? (rawNote ? `${expCat} — ${rawNote}` : expCat)
+        : rawNote;
+
+      const payload = {
+        payment_date: payDate,
+        semester_label: inferSemesterFromDate(payDate),
+        type,
+        student_id: studentId,
+        tutor_id: type === 'TUTOR_PAYOUT' ? document.getElementById('pmTutorSelect').value : null,
+        amount,
+        credited_amount: credited,
+        receipt_type: type === 'STUDENT_PAYMENT' ? rec : null,
+        expense_category: expCat,
+        notes: finalNote
+      };
+
+      const { error } = await db.from('payments').insert(payload);
+      if (error) { alert('Σφάλμα: ' + error.message); return; }
+      closeModal('paymentModal');
+      showToast('Η οικονομική κίνηση καταχωρήθηκε!');
+      await loadAllData();
+      render();
     }
 
     async function handleLogout() {
