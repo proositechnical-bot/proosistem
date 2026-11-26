@@ -6,6 +6,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="theme-color" content="#991b1b" />
   <title>ΠΡΟΩΣΗ STEM — Διαχείριση Καθηγητή</title>
+  <link rel="icon" type="image/png" href="logo.png" />
+  <link rel="apple-touch-icon" href="logo.png" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -14,9 +16,12 @@
   <!-- Top Bar -->
   <header class="bg-red-800 text-white p-4 sticky top-0 z-20 shadow">
     <div class="max-w-lg mx-auto flex items-center justify-between gap-2">
-      <div>
-        <h1 class="font-bold text-lg leading-tight tracking-wide">ΠΡΟΩΣΗ STEM</h1>
-        <p class="text-xs text-red-200">Πίνακας Καθηγητή</p>
+      <div class="flex items-center gap-3">
+        <img src="logo.png" alt="ΠΡΟΩΣΗ STEM" class="w-10 h-10 rounded-xl object-contain bg-white p-1 shadow-sm" />
+        <div>
+          <h1 class="font-bold text-lg leading-tight tracking-wide">ΠΡΟΩΣΗ STEM</h1>
+          <p class="text-xs text-red-200">Πίνακας Καθηγητή</p>
+        </div>
       </div>
       <select id="tutorSelect" class="bg-red-900 text-white text-sm rounded-lg px-3 py-1.5 border border-red-700 outline-none">
         <option>Φόρτωση...</option>
