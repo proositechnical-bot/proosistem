@@ -10,6 +10,7 @@
   <link rel="apple-touch-icon" href="proosi stem_original (1).jpg" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 </head>
 <body class="bg-slate-100 text-slate-800 pb-24">
 
@@ -43,7 +44,7 @@
   <div id="appShell" class="hidden">
     <!-- Top Bar -->
     <header class="bg-red-800 text-white p-3.5 sticky top-0 z-20 shadow">
-      <div class="max-w-4xl mx-auto flex items-center justify-between gap-2">
+      <div class="max-w-5xl mx-auto flex items-center justify-between gap-2">
         <div class="flex items-center gap-2.5">
           <img src="proosi stem_original (1).jpg" alt="ΠΡΟΩΣΗ STEM" class="w-9 h-9 rounded-xl object-contain bg-white p-0.5 shadow-sm" />
           <div>
@@ -52,9 +53,12 @@
           </div>
         </div>
 
-        <div class="flex items-center gap-1.5">
+        <div class="flex items-center gap-1.5 flex-wrap justify-end">
           <span id="tutorNameBadge" class="hidden bg-red-900 text-white text-xs font-semibold rounded-lg px-2.5 py-1.5 border border-red-700"></span>
           <select id="tutorSelect" class="hidden bg-red-900 text-white text-xs rounded-lg px-2 py-1.5 border border-red-700 outline-none"></select>
+          <button onclick="openExportModal()" id="exportHeaderBtn" class="hidden bg-red-950/60 text-red-100 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-red-700/60 hover:bg-red-900">
+            📥 Excel / Backup
+          </button>
           <button onclick="toggleAppMode()" id="modeToggleBtn" class="hidden bg-white text-red-900 font-bold text-xs px-2.5 py-1.5 rounded-lg shadow-sm active:scale-95 transition">
             Καθηγητής
           </button>
@@ -66,9 +70,9 @@
     </header>
 
     <!-- Main Content -->
-    <main class="max-w-4xl mx-auto p-4 space-y-4">
+    <main class="max-w-5xl mx-auto p-4 space-y-4">
       <div id="statusMsg" class="hidden text-center text-sm py-2 px-3 rounded-lg bg-emerald-100 text-emerald-800 font-medium"></div>
-      <div id="content" class="space-y-3"></div>
+      <div id="content" class="space-y-4"></div>
     </main>
 
     <!-- Bottom Navigation -->
@@ -170,7 +174,7 @@
         </div>
         <div>
           <label class="text-xs font-semibold text-slate-600">Εξάμηνο</label>
-          <input id="nrSemester" type="text" value="ΧΕΙΜΕΡΙΝΟ '26" class="w-full mt-1 border rounded-lg p-2.5 text-sm" />
+          <select id="nrSemester" class="w-full mt-1 border rounded-lg p-2.5 text-sm"></select>
         </div>
       </div>
 
@@ -208,8 +212,8 @@
   </div>
 
   <!-- 3. Modal Πληρωμής / Εξόδου (Admin) -->
-  <div id="paymentModal" class="hidden fixed inset-0 bg-black/50 z-30 flex items-end sm:items-center justify-center p-4">
-    <div class="bg-white w-full max-w-md rounded-2xl p-5 space-y-3.5 shadow-xl">
+  <div id="paymentModal" class="hidden fixed inset-0 bg-black/50 z-30 flex items-end sm:items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white w-full max-w-md rounded-2xl p-5 space-y-3.5 shadow-xl my-auto">
       <h2 id="pmTitle" class="font-bold text-lg text-slate-900">Καταχώριση Κίνησης</h2>
       <input type="hidden" id="pmType" />
 
@@ -226,7 +230,7 @@
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="text-xs font-semibold text-slate-600">Ημερομηνία</label>
-          <input id="pmDate" type="date" class="w-full mt-1 border rounded-lg p-2.5 text-sm" />
+          <input id="pmDate" type="date" onchange="syncPaymentSemesterFromDate()" class="w-full mt-1 border rounded-lg p-2.5 text-sm" />
         </div>
         <div>
           <label class="text-xs font-semibold text-slate-600">Ποσό Ταμείου (€)</label>
@@ -234,28 +238,46 @@
         </div>
       </div>
 
-      <div id="pmReceiptWrap" class="hidden space-y-1">
-        <label class="text-xs font-semibold text-slate-600">Τρόπος / Απόδειξη</label>
-        <select id="pmReceipt" onchange="updateCreditPreview()" class="w-full border rounded-lg p-2.5 text-sm">
-          <option value="ΜΕ ΑΠΟΔΕΙΞΗ">Με Απόδειξη (0% έκπτωση)</option>
-          <option value="ΧΩΡΙΣ ΑΠΟΔΕΙΞΗ">Χωρίς Απόδειξη (+10% μόνο στην οφειλή)</option>
-        </select>
-        <div id="pmCreditPreview" class="text-xs text-emerald-700 font-semibold leading-relaxed"></div>
+      <div>
+        <label class="text-xs font-semibold text-slate-600">Εξάμηνο Καταχώρισης</label>
+        <select id="pmSemester" class="w-full mt-1 border rounded-lg p-2.5 text-sm"></select>
       </div>
 
-      <div id="pmExpCatWrap" class="hidden">
-        <label class="text-xs font-semibold text-slate-600">Κατηγορία Εξόδου</label>
-        <select id="pmExpCategory" class="w-full mt-1 border rounded-lg p-2.5 text-sm"></select>
+      <div id="pmReceiptWrap" class="hidden space-y-2">
+        <div>
+          <label class="text-xs font-semibold text-slate-600">Τρόπος / Απόδειξη</label>
+          <select id="pmReceipt" onchange="updateCreditPreview()" class="w-full mt-1 border rounded-lg p-2.5 text-sm">
+            <option value="ΜΕ ΑΠΟΔΕΙΞΗ">Με Απόδειξη (0% έκπτωση)</option>
+            <option value="ΧΩΡΙΣ ΑΠΟΔΕΙΞΗ">Χωρίς Απόδειξη (+10% μόνο στην οφειλή)</option>
+          </select>
+        </div>
+        <div id="pmCreditPreview" class="text-xs text-emerald-700 font-semibold leading-relaxed"></div>
+        <div id="pmReceiptFileWrap" class="bg-slate-50 border border-slate-200 rounded-xl p-2.5 space-y-1">
+          <label class="text-xs font-semibold text-slate-700 block">Επισύναψη Απόδειξης (PDF / Εικόνα) *</label>
+          <input id="pmReceiptFile" type="file" accept=".pdf,image/*" class="w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-red-50 file:text-red-800" />
+          <p class="text-[10px] text-slate-400">Αποθηκεύεται στο αρχείο και μπορείς να τη στείλεις με 1 κλικ στον φοιτητή.</p>
+        </div>
+      </div>
+
+      <div id="pmExpCatWrap" class="hidden space-y-2.5">
+        <div>
+          <label class="text-xs font-semibold text-slate-600">Κατηγορία Εξόδου</label>
+          <select id="pmExpCategory" class="w-full mt-1 border rounded-lg p-2.5 text-sm"></select>
+        </div>
+        <label class="flex items-center gap-2 text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl p-2.5 cursor-pointer">
+          <input id="pmHasInvoice" type="checkbox" class="w-4 h-4 rounded accent-red-800" />
+          <span>Κόπηκε Τιμολόγιο (εκπίπτει από τον εκτιμώμενο φόρο)</span>
+        </label>
       </div>
 
       <div>
-        <label class="text-xs font-semibold text-slate-600">Κατηγορία / Σημείωση</label>
+        <label class="text-xs font-semibold text-slate-600">Σημείωση / Περιγραφή</label>
         <input id="pmNotes" type="text" placeholder="π.χ. Προκαταβολή πακέτου / Εξόφληση" class="w-full mt-1 border rounded-lg p-2.5 text-sm" />
       </div>
 
       <div class="flex gap-2 pt-2">
         <button onclick="closeModal('paymentModal')" class="flex-1 py-2.5 rounded-xl border border-slate-300 font-medium text-slate-700">Ακύρωση</button>
-        <button onclick="savePayment()" class="flex-1 py-2.5 rounded-xl bg-red-800 text-white font-semibold">Αποθήκευση</button>
+        <button onclick="savePayment()" id="pmSaveBtn" class="flex-1 py-2.5 rounded-xl bg-red-800 text-white font-semibold">Αποθήκευση</button>
       </div>
     </div>
   </div>
@@ -364,7 +386,7 @@
 
   <!-- 6. Modal Ημερολογίου Φοιτητή (Admin) -->
   <div id="studentDiaryModal" class="hidden fixed inset-0 bg-black/50 z-30 flex items-end sm:items-center justify-center p-4">
-    <div class="bg-white w-full max-w-lg rounded-2xl p-5 shadow-xl max-h-[88vh] flex flex-col space-y-3.5">
+    <div class="bg-white w-full max-w-lg rounded-2xl p-5 shadow-xl max-h-[88vh] flex flex-col space-y-3">
       <div class="flex justify-between items-start gap-2 border-b border-slate-100 pb-3">
         <div>
           <h2 id="sdTitle" class="font-bold text-lg text-slate-900"></h2>
@@ -372,11 +394,41 @@
         </div>
         <span id="sdBadge" class="text-xs font-bold px-2.5 py-1 rounded-full shrink-0"></span>
       </div>
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-xs font-semibold text-slate-600">Φίλτρο Εξαμήνου:</span>
+        <select id="sdSemesterSelect" onchange="renderStudentDiaryBody()" class="border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold bg-slate-50 outline-none"></select>
+      </div>
       <div id="sdSummary" class="grid grid-cols-3 gap-2 text-center"></div>
       <div id="sdBody" class="overflow-y-auto space-y-2.5 pr-1 flex-1"></div>
       <div class="pt-2 border-t border-slate-100">
         <button onclick="closeModal('studentDiaryModal')" class="w-full py-2.5 rounded-xl bg-slate-800 text-white font-semibold text-sm">Κλείσιμο</button>
       </div>
+    </div>
+  </div>
+
+  <!-- 7. Modal Εξαγωγής Excel & Backup (Admin) -->
+  <div id="exportModal" class="hidden fixed inset-0 bg-black/50 z-30 flex items-end sm:items-center justify-center p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl p-5 space-y-3.5 shadow-xl">
+      <div>
+        <h2 class="font-bold text-lg text-slate-900">Εξαγωγή Excel & Πλήρες Backup</h2>
+        <p class="text-xs text-slate-500">Κατέβασε μεμονωμένους πίνακες ή ένα ενιαίο αρχείο backup (.xlsx) με όλα τα δεδομένα.</p>
+      </div>
+
+      <button onclick="exportFullBackup()" class="w-full py-3 rounded-xl bg-red-800 text-white font-bold text-sm shadow-sm active:scale-95 transition">
+        📦 Πλήρες Backup (Όλα σε 1 κοινό Excel)
+      </button>
+
+      <div class="grid grid-cols-2 gap-2 pt-1">
+        <button onclick="exportSingleSheet('requests')" class="py-2.5 px-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-800 hover:bg-slate-100">📋 Αιτήματα</button>
+        <button onclick="exportSingleSheet('income')" class="py-2.5 px-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-emerald-800 hover:bg-slate-100">💰 Έσοδα</button>
+        <button onclick="exportSingleSheet('expenses')" class="py-2.5 px-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-rose-800 hover:bg-slate-100">🧾 Έξοδα</button>
+        <button onclick="exportSingleSheet('payments')" class="py-2.5 px-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-800 hover:bg-slate-100">🔄 Όλες οι Κινήσεις</button>
+        <button onclick="exportSingleSheet('tutors')" class="py-2.5 px-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-800 hover:bg-slate-100">👨‍🏫 Καθηγητές</button>
+        <button onclick="exportSingleSheet('students')" class="py-2.5 px-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-800 hover:bg-slate-100">🎓 Φοιτητές</button>
+        <button onclick="exportSingleSheet('logs')" class="col-span-2 py-2.5 px-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-800 hover:bg-slate-100">📅 Ημερολόγιο Μαθημάτων (Ώρες)</button>
+      </div>
+
+      <button onclick="closeModal('exportModal')" class="w-full py-2.5 rounded-xl border border-slate-300 font-medium text-slate-700 text-sm">Κλείσιμο</button>
     </div>
   </div>
 
@@ -406,26 +458,123 @@
     let packages = [];
     let rateTiers = [];
     let expenseCategories = [];
+
     let studentFilterTab = 'debt';
     let studentSearchQuery = '';
-    let selectedSemester = 'ALL';
+    let selectedPeriod = 'ALL'; // 'ALL' | 'SEM:ΧΕΙΜ 26/27' | 'YEAR:26/27'
+    let paymentFilterPeriod = 'ALL';
+    let paymentFilterType = 'ALL';
+    let paymentFilterCat = 'ALL';
+    let activeDiaryStudentId = null;
 
+    // ================= ΚΑΝΟΝΑΣ ΕΞΑΜΗΝΩΝ & ΕΤΩΝ =================
+    // Χειμερινό: 1/10 - 28(29)/2 -> ΧΕΙΜ YY/(YY+1)
+    // Εαρινό:    1/3  - 30/6     -> ΕΑΡ YY
+    // Επαναληπτ: 1/7  - 30/9     -> ΕΠΑΝ YY
     function inferSemesterFromDate(dateStr) {
-      if (!dateStr) return 'ΧΕΙΜ 26/27';
+      if (!dateStr) return inferSemesterFromDate(new Date().toISOString().slice(0, 10));
       const parts = String(dateStr).slice(0, 10).split('-');
       if (parts.length !== 3) return 'ΧΕΙΜ 26/27';
-      const y = Number(parts[0]), m = Number(parts[1]), d = Number(parts[2]);
-      if ((m === 9 && d >= 20) || m >= 10 || m === 1) {
-        const startY = m >= 9 ? y : y - 1;
+      const y = Number(parts[0]), m = Number(parts[1]);
+      if (m >= 10 || m <= 2) {
+        const startY = m >= 10 ? y : y - 1;
         return `ΧΕΙΜ ${String(startY).slice(-2)}/${String(startY + 1).slice(-2)}`;
       }
-      if (m >= 2 && m <= 7) return `ΕΑΡ ${String(y).slice(-2)}`;
+      if (m >= 3 && m <= 6) return `ΕΑΡ ${String(y).slice(-2)}`;
       return `ΕΠΑΝ ${String(y).slice(-2)}`;
     }
 
+    function normalizeSemesterLabel(raw, fallbackDate) {
+      if (!raw) return inferSemesterFromDate(fallbackDate);
+      const s = String(raw).trim().toUpperCase();
+      if (/^ΧΕΙΜ \d{2}\/\d{2}$/.test(s) || /^ΕΑΡ \d{2}$/.test(s) || /^ΕΠΑΝ \d{2}$/.test(s)) return s;
+      if (s.includes('ΧΕΙΜ') && s.includes('26')) return 'ΧΕΙΜ 26/27';
+      if (s.includes('ΧΕΙΜ') && s.includes('25')) return 'ΧΕΙΜ 25/26';
+      if (s.includes('ΕΑΡ') && s.includes('27')) return 'ΕΑΡ 27';
+      if (s.includes('ΕΑΡ') && s.includes('26')) return 'ΕΑΡ 26';
+      if (s.includes('ΕΠΑΝ') && s.includes('27')) return 'ΕΠΑΝ 27';
+      if (s.includes('ΕΠΑΝ') && s.includes('26')) return 'ΕΠΑΝ 26';
+      return inferSemesterFromDate(fallbackDate);
+    }
+
+    function getAcademicYearFromSemester(sem) {
+      if (!sem) return '26/27';
+      const mW = sem.match(/^ΧΕΙΜ (\d{2})\/(\d{2})$/);
+      if (mW) return `${mW[1]}/${mW[2]}`;
+      const mS = sem.match(/^(?:ΕΑΡ|ΕΠΑΝ) (\d{2})$/);
+      if (mS) {
+        const endY = Number(mS[1]);
+        const startY = String(endY - 1).padStart(2, '0');
+        return `${startY}/${mS[1]}`;
+      }
+      return '26/27';
+    }
+
     function getRecordSemester(rec) {
-      if (rec && rec.semester_label) return rec.semester_label;
-      return inferSemesterFromDate(rec?.payment_date || rec?.lesson_date || rec?.request_date);
+      if (!rec) return inferSemesterFromDate();
+      const dt = rec.payment_date || rec.lesson_date || rec.request_date;
+      if (rec.semester_label) return normalizeSemesterLabel(rec.semester_label, dt);
+      return inferSemesterFromDate(dt);
+    }
+
+    // Δημιουργεί λίστα εξαμήνων από 2025/26 έως και 1 έτος μετά την τρέχουσα ημερομηνία
+    function getAvailableSemesters() {
+      const now = new Date();
+      const future = new Date(now);
+      future.setFullYear(future.getFullYear() + 1);
+
+      const sems = [];
+      const cur = new Date(2025, 9, 1); // Oct 2025
+      while (cur <= future) {
+        const iso = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-15`;
+        const lbl = inferSemesterFromDate(iso);
+        if (!sems.includes(lbl)) sems.push(lbl);
+        cur.setMonth(cur.getMonth() + 1);
+      }
+      return sems.reverse();
+    }
+
+    function getAvailableAcademicYears() {
+      const yrs = [];
+      getAvailableSemesters().forEach(s => {
+        const y = getAcademicYearFromSemester(s);
+        if (!yrs.includes(y)) yrs.push(y);
+      });
+      return yrs;
+    }
+
+    function matchesPeriod(rec, periodVal) {
+      if (!periodVal || periodVal === 'ALL') return true;
+      const sem = getRecordSemester(rec);
+      if (periodVal.startsWith('SEM:')) return sem === periodVal.slice(4);
+      if (periodVal.startsWith('YEAR:')) return getAcademicYearFromSemester(sem) === periodVal.slice(5);
+      return true;
+    }
+
+    function buildPeriodOptionsHtml(selectedVal, includeYears = true) {
+      const sems = getAvailableSemesters();
+      const yrs = getAvailableAcademicYears();
+      let html = `<option value="ALL" ${selectedVal === 'ALL' ? 'selected' : ''}>Όλα τα Εξάμηνα (Συνολικά)</option>`;
+      if (includeYears) {
+        html += `<optgroup label="Ακαδημαϊκά Έτη">` +
+          yrs.map(y => `<option value="YEAR:${y}" ${selectedVal === 'YEAR:' + y ? 'selected' : ''}>Έτος ${y} (Χειμ + Εαρ + Επαν)</option>`).join('') +
+          `</optgroup>`;
+      }
+      html += `<optgroup label="Εξάμηνα (έως +1 έτος)">` +
+        sems.map(s => `<option value="SEM:${s}" ${selectedVal === 'SEM:' + s ? 'selected' : ''}>${s}</option>`).join('') +
+        `</optgroup>`;
+      return html;
+    }
+
+    function getPaymentExpenseCategory(p) {
+      if (p.expense_category) return p.expense_category;
+      if (p.notes && p.notes.includes(' — ')) return p.notes.split(' — ')[0].trim().toUpperCase();
+      if (p.notes) {
+        const n = p.notes.trim().toUpperCase();
+        const exact = expenseCategories.find(c => c.name === n);
+        if (exact) return exact.name;
+      }
+      return 'ΛΟΙΠΑ';
     }
 
     function showToast(msg) {
@@ -501,9 +650,11 @@
       const sel = document.getElementById('tutorSelect');
       const badge = document.getElementById('tutorNameBadge');
       const modeBtn = document.getElementById('modeToggleBtn');
+      const expBtn = document.getElementById('exportHeaderBtn');
 
       if (isAdminUser) {
         modeBtn.classList.remove('hidden');
+        expBtn.classList.remove('hidden');
         const activeTutors = tutors.filter(t => t.is_active !== false);
         sel.innerHTML = activeTutors.map(t => `<option value="${t.id}">${t.short_name}</option>`).join('');
         currentTutorId = userProfile.id;
@@ -511,7 +662,7 @@
         sel.onchange = (e) => { currentTutorId = e.target.value; render(); };
 
         appMode = 'admin';
-        currentTab = 'admin_requests';
+        currentTab = 'admin_cash';
         modeBtn.textContent = 'Καθηγητής';
         document.getElementById('headerSubtitle').textContent = 'Διαχείριση & Ταμείο';
         sel.classList.add('hidden');
@@ -521,6 +672,7 @@
         currentTab = 'active';
         currentTutorId = userProfile.id;
         modeBtn.classList.add('hidden');
+        expBtn.classList.add('hidden');
         sel.classList.add('hidden');
         badge.textContent = userProfile.short_name;
         badge.classList.remove('hidden');
@@ -535,9 +687,9 @@
       const [tRes, sRes, rRes, lRes, pRes, pkgRes, tierRes, catRes] = await Promise.all([
         db.from('tutors').select('*').order('short_name'),
         db.from('students').select('*').order('last_name'),
-        db.from('requests').select('*, students(last_name, first_name, phone, institution, department), tutors(short_name)').order('request_date', { ascending: false }),
+        db.from('requests').select('*, students(last_name, first_name, phone, email, institution, department), tutors(short_name)').order('request_date', { ascending: false }),
         db.from('lesson_logs').select('*, students(last_name, first_name), tutors(short_name)').order('lesson_date', { ascending: false }),
-        db.from('payments').select('*, students(last_name, first_name), tutors(short_name)').order('payment_date', { ascending: false }),
+        db.from('payments').select('*, students(last_name, first_name, email), tutors(short_name)').order('payment_date', { ascending: false }),
         db.from('pricing_packages').select('*').order('sort_order'),
         db.from('tutor_rate_tiers').select('*').order('num_students'),
         db.from('expense_categories').select('*').order('sort_order')
@@ -552,7 +704,7 @@
       rateTiers = tierRes.data || [];
       expenseCategories = (catRes.data && catRes.data.length)
         ? catRes.data
-        : ['ΚΑΡΤΟΚΙΝΗΤΟ', 'SECRETARY', 'ΛΟΓΙΣΤΡΙΑ', 'ΠΑΠΑΒΑΣΙΛΗΣ', 'UNISTUDENTS', 'ΔΙΑΦΗΜΙΣΗ/ΦΥΛΛΑΔΙΑ ΚΛΠ', 'CEO', 'ΦΟΡΟΣ', 'ROADCUBE', 'GOOGLE ADS', 'META', 'ΠΡΟΩΣΗ', 'ΑΝΑΛΩΣΙΜΑ', 'ΔΙΑΜΟΡΦΩΣΗ SITE', 'ΛΟΙΠΑ'].map((name, i) => ({ id: String(i), name, sort_order: i + 1 }));
+        : ['ΚΑΡΤΟΚΙΝΗΤΟ', 'SECRETARY', 'ΛΟΓΙΣΤΡΙΑ', 'ΠΑΠΑΒΑΣΙΛΗΣ', 'UNISTUDENTS', 'ΔΙΑΦΗΜΙΣΗ/ΦΥΛΛΑΔΙΑ ΚΛΠ', 'CEO', 'ΦΟΡΟΣ', 'ROADCUBE', 'GOOGLE ADS', 'META', 'ΠΡΟΩΣΗ', 'ΑΝΑΛΩΣΙΜΑ', 'ΔΙΑΜΟΡΦΩΣΗ SITE', 'ΛΟΙΠΑ'].map((name, i) => ({ id: String(i), name, sort_order: i + 1, is_active: true }));
     }
 
     function getTutorHourlyForGroup(numStudents) {
@@ -573,12 +725,14 @@
       const btn = document.getElementById('modeToggleBtn');
       const sub = document.getElementById('headerSubtitle');
       const sel = document.getElementById('tutorSelect');
+      const expBtn = document.getElementById('exportHeaderBtn');
 
       if (appMode === 'admin') {
         btn.textContent = 'Καθηγητής';
         sub.textContent = 'Διαχείριση & Ταμείο';
         sel.classList.add('hidden');
-        currentTab = 'admin_requests';
+        expBtn.classList.remove('hidden');
+        currentTab = 'admin_cash';
       } else {
         const activeTutors = tutors.filter(t => t.is_active !== false);
         sel.innerHTML = activeTutors.map(t => `<option value="${t.id}">${t.short_name}</option>`).join('');
@@ -586,6 +740,7 @@
         btn.textContent = 'Admin';
         sub.textContent = 'Πίνακας Καθηγητή';
         sel.classList.remove('hidden');
+        expBtn.classList.add('hidden');
         currentTab = 'active';
       }
       renderNav();
@@ -607,16 +762,16 @@
             { id: 'logs', label: 'Ώρες & Κέρδη' }
           ]
         : [
-            { id: 'admin_requests', label: 'Αναθέσεις' },
+            { id: 'admin_requests', label: 'Αιτήματα' },
             { id: 'admin_cash', label: 'Ταμείο' },
             { id: 'admin_payments', label: 'Κινήσεις' },
             { id: 'admin_students', label: 'Φοιτητές' },
             { id: 'admin_tutors', label: 'Καθηγητές' },
-            { id: 'admin_prices', label: 'Τιμές' }
+            { id: 'admin_prices', label: 'Τιμές & Έξοδα' }
           ];
 
       const gridClass = tabs.length === 3 ? 'grid-cols-3' : 'grid-cols-6';
-      nav.innerHTML = `<div class="max-w-4xl mx-auto grid ${gridClass} text-[11px] font-medium">` +
+      nav.innerHTML = `<div class="max-w-5xl mx-auto grid ${gridClass} text-[11px] font-medium">` +
         tabs.map(t => `
           <button onclick="setTab('${t.id}')" class="py-3 px-0.5 flex flex-col items-center gap-1 ${currentTab === t.id ? 'text-red-800 border-t-2 border-red-800 font-bold' : 'text-slate-500'}">
             <span>${t.label}</span>
@@ -671,15 +826,9 @@
     }
 
     function renderSemesterResultsBlock() {
-      const allSems = new Set(['ΧΕΙΜ 26/27', 'ΕΠΑΝ 26', 'ΕΑΡ 26', 'ΧΕΙΜ 25/26']);
-      payments.forEach(p => allSems.add(getRecordSemester(p)));
-      logs.forEach(l => allSems.add(getRecordSemester(l)));
-      const semOptions = ['ALL', ...Array.from(allSems)];
-
-      const matchSem = rec => selectedSemester === 'ALL' || getRecordSemester(rec) === selectedSemester;
-
-      const semPayments = payments.filter(matchSem);
-      const semLogs = logs.filter(matchSem);
+      const semPayments = payments.filter(p => matchesPeriod(p, selectedPeriod));
+      const semLogs = logs.filter(l => matchesPeriod(l, selectedPeriod));
+      const semReqs = requests.filter(r => matchesPeriod(r, selectedPeriod));
 
       const esoda = +semPayments
         .filter(p => p.type === 'STUDENT_PAYMENT' || p.type === 'OTHER_INCOME')
@@ -689,27 +838,72 @@
         .filter(p => p.type === 'STUDENT_PAYMENT' && p.receipt_type === 'ΜΕ ΑΠΟΔΕΙΞΗ')
         .reduce((s, p) => s + Number(p.amount || 0), 0).toFixed(2);
 
-      const exodaKiniseis = +semPayments
-        .filter(p => p.type === 'EXPENSE' || p.type === 'TUTOR_PAYOUT')
+      const leitourgikaExoda = +semPayments
+        .filter(p => p.type === 'EXPENSE')
         .reduce((s, p) => s + Number(p.amount || 0), 0).toFixed(2);
 
+      const exodaTimologio = +semPayments
+        .filter(p => p.type === 'EXPENSE' && p.has_invoice)
+        .reduce((s, p) => s + Number(p.amount || 0), 0).toFixed(2);
+
+      const plirwmesKathigiton = +semPayments
+        .filter(p => p.type === 'TUTOR_PAYOUT')
+        .reduce((s, p) => s + Number(p.amount || 0), 0).toFixed(2);
+
+      const synolikaExoda = +(leitourgikaExoda + plirwmesKathigiton).toFixed(2);
       const tutorEarnedSem = +semLogs.reduce((s, l) => s + Number(l.tutor_earning || 0), 0).toFixed(2);
-      const estTax = +(esodaApodeixi * 0.22).toFixed(2);
-      const netCashResult = +(esoda - exodaKiniseis).toFixed(2);
+
+      // Εκτιμώμενος Φόρος = (Έσοδα με Αποδείξεις - Έξοδα με Τιμολόγιο) * 0,22
+      const taxBase = +(esodaApodeixi - exodaTimologio).toFixed(2);
+      const estTax = +(Math.max(0, taxBase) * 0.22).toFixed(2);
+
+      // Καθαρή Ταμειακή Διαφορά = Συνολικά Έσοδα - Συνολικά Έξοδα
+      const netCashResult = +(esoda - synolikaExoda).toFixed(2);
+
+      // Αιτήματα περιόδου
+      const reqActive = semReqs.filter(r => r.status === 'OK').length;
+      const reqPending = semReqs.filter(r => r.status === 'ΕΚΚΡΕΜΕΣ').length;
+      const reqDone = semReqs.filter(r => r.status === 'ΟΛΟΚΛΗΡΩΘΗΚΕ').length;
+
+      // Ανάλυση Εξόδων περιόδου ανά κατηγορία
+      const catTotals = {};
+      semPayments.filter(p => p.type === 'EXPENSE').forEach(p => {
+        const c = getPaymentExpenseCategory(p);
+        catTotals[c] = +( (catTotals[c] || 0) + Number(p.amount || 0) ).toFixed(2);
+      });
+      if (plirwmesKathigiton > 0) {
+        catTotals['ΑΜΟΙΒΕΣ ΚΑΘΗΓΗΤΩΝ (ΠΛΗΡΩΜΕΣ)'] = plirwmesKathigiton;
+      }
+      const sortedCats = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
+
+      const breakdownHtml = sortedCats.length ? `
+        <div class="pt-2 border-t border-slate-100">
+          <p class="text-xs font-bold text-slate-700 mb-2">Ανάλυση Εξόδων Περιόδου</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+            ${sortedCats.map(([cat, val]) => {
+              const pct = synolikaExoda > 0 ? ((val / synolikaExoda) * 100).toFixed(1) : '0.0';
+              return `
+                <div class="flex justify-between items-center text-xs bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+                  <span class="font-semibold text-slate-700 truncate pr-2">${cat}</span>
+                  <span class="shrink-0 font-bold text-slate-900">${val}€ <span class="text-[10px] text-slate-400 font-medium">(${pct}%)</span></span>
+                </div>`;
+            }).join('')}
+          </div>
+        </div>` : '';
 
       return `
-        <div class="bg-white rounded-2xl p-4 border border-slate-200 space-y-3 shadow-sm">
+        <div class="bg-white rounded-2xl p-4 border border-slate-200 space-y-3.5 shadow-sm">
           <div class="flex flex-wrap justify-between items-center gap-2">
             <div>
-              <h3 class="font-bold text-sm text-slate-900">Οικονομικά Αποτελέσματα Εξαμήνου</h3>
-              <p class="text-[11px] text-slate-400">Αυτόματος διαχωρισμός ανά περίοδο / εξάμηνο</p>
+              <h3 class="font-bold text-sm text-slate-900">Οικονομικά Αποτελέσματα & Στατιστικά Περιόδου</h3>
+              <p class="text-[11px] text-slate-400">Χειμερινό 1/10–28/2 • Εαρινό 1/3–30/6 • Επαναληπτική 1/7–30/9</p>
             </div>
-            <select onchange="selectedSemester = this.value; render();" class="border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 bg-slate-50 outline-none">
-              ${semOptions.map(s => `<option value="${s}" ${selectedSemester === s ? 'selected' : ''}>${s === 'ALL' ? 'Όλα τα Εξάμηνα' : s}</option>`).join('')}
+            <select onchange="selectedPeriod = this.value; render();" class="border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 bg-slate-50 outline-none">
+              ${buildPeriodOptionsHtml(selectedPeriod, true)}
             </select>
           </div>
 
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
             <div class="bg-emerald-50/70 border border-emerald-200/70 rounded-xl p-3">
               <p class="text-[11px] text-emerald-800 font-medium">Έσοδα Ταμείου</p>
               <p class="text-lg font-extrabold text-emerald-700 mt-0.5">${esoda} €</p>
@@ -717,20 +911,38 @@
             </div>
             <div class="bg-rose-50/70 border border-rose-200/70 rounded-xl p-3">
               <p class="text-[11px] text-rose-800 font-medium">Έξοδα & Πληρωμές</p>
-              <p class="text-lg font-extrabold text-rose-700 mt-0.5">${exodaKiniseis} €</p>
-              <p class="text-[10px] text-rose-700/80">Δεδουλευμένες αμοιβές: ${tutorEarnedSem}€</p>
+              <p class="text-lg font-extrabold text-rose-700 mt-0.5">${synolikaExoda} €</p>
+              <p class="text-[10px] text-rose-800/80 leading-tight">Έξοδα: ${leitourgikaExoda}€ • Αμοιβές: ${plirwmesKathigiton}€</p>
+              <p class="text-[9px] text-slate-500">Δεδουλευμένες αμοιβές: ${tutorEarnedSem}€</p>
             </div>
             <div class="bg-amber-50/70 border border-amber-200/70 rounded-xl p-3">
-              <p class="text-[11px] text-amber-900 font-medium">Εκτιμ. Φόρος (22%)</p>
+              <p class="text-[11px] text-amber-900 font-medium">Εκτιμώμενος Φόρος (22%)</p>
               <p class="text-lg font-extrabold text-amber-700 mt-0.5">${estTax} €</p>
-              <p class="text-[10px] text-amber-800/80">Επί εσόδων με απόδειξη</p>
+              <p class="text-[10px] text-amber-800/80 leading-tight">(${esodaApodeixi}€ αποδ. − ${exodaTimologio}€ τιμ.) × 22%</p>
             </div>
             <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
               <p class="text-[11px] text-slate-600 font-medium">Καθαρή Ταμειακή Διαφορά</p>
               <p class="text-lg font-extrabold ${netCashResult >= 0 ? 'text-emerald-700' : 'text-red-700'} mt-0.5">${netCashResult >= 0 ? '+' : ''}${netCashResult} €</p>
-              <p class="text-[10px] text-slate-400">Έσοδα − Έξοδα περιόδου</p>
+              <p class="text-[10px] text-slate-400">Συνολικά Έσοδα − Συνολικά Έξοδα</p>
             </div>
           </div>
+
+          <div class="grid grid-cols-3 gap-2 text-center pt-1">
+            <div class="bg-emerald-50/50 border border-emerald-100 rounded-xl py-2 px-2">
+              <p class="text-[10px] font-semibold text-emerald-800">Υλοποιούνται (OK)</p>
+              <p class="text-base font-extrabold text-emerald-700">${reqActive}</p>
+            </div>
+            <div class="bg-amber-50/50 border border-amber-100 rounded-xl py-2 px-2">
+              <p class="text-[10px] font-semibold text-amber-800">Εκκρεμή Αιτήματα</p>
+              <p class="text-base font-extrabold text-amber-700">${reqPending}</p>
+            </div>
+            <div class="bg-slate-50 border border-slate-200 rounded-xl py-2 px-2">
+              <p class="text-[10px] font-semibold text-slate-600">Ολοκληρωμένα</p>
+              <p class="text-base font-extrabold text-slate-800">${reqDone}</p>
+            </div>
+          </div>
+
+          ${breakdownHtml}
         </div>`;
     }
 
@@ -801,7 +1013,7 @@
               <div class="bg-white rounded-2xl p-4 shadow-sm border-l-4 border-amber-400 space-y-3">
                 <div>
                   <div class="flex justify-between items-center">
-                    <span class="text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">${r.semester_label || ''}</span>
+                    <span class="text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">${getRecordSemester(r)}</span>
                     ${s.phone ? `<a href="tel:${s.phone}" class="text-xs font-semibold text-red-700 underline">📞 ${s.phone}</a>` : ''}
                   </div>
                   <h3 class="font-bold text-base mt-1">${s.last_name || ''} ${s.first_name || ''}</h3>
@@ -853,7 +1065,7 @@
         if (currentTab === 'admin_requests') {
           const topBtn = `
             <button onclick="openNewRequestModal()" class="w-full bg-red-800 text-white py-3 rounded-2xl font-bold text-sm shadow-sm active:scale-95 transition">
-              + Νέα Επιθυμία / Ανάθεση Μαθήματος
+              + Νέο Αίτημα / Καταχώρηση Φοιτητή
             </button>`;
 
           const list = requests.map(r => {
@@ -873,7 +1085,10 @@
             return `
               <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-1.5">
                 <div class="flex justify-between items-center">
-                  <span class="text-[11px] font-bold px-2 py-0.5 rounded-full ${badge}">${r.status}</span>
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-[11px] font-bold px-2 py-0.5 rounded-full ${badge}">${r.status}</span>
+                    <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">${getRecordSemester(r)}</span>
+                  </div>
                   <span class="text-xs font-bold text-red-800">${r.tutors?.short_name || 'Χωρίς ανάθεση'}</span>
                 </div>
                 <h3 class="font-bold text-sm">${s.last_name || ''} ${s.first_name || ''}</h3>
@@ -890,9 +1105,11 @@
           const totalOut = payments.filter(p => p.type === 'TUTOR_PAYOUT' || p.type === 'EXPENSE').reduce((s, p) => s + Number(p.amount || 0), 0);
           const cashNow = +(totalIn - totalOut).toFixed(2);
 
-          const upfrontTurnover = requests.filter(r => r.status !== 'ΑΚΥΡΩΘΗΚΕ').reduce((s, r) => s + Number(r.upfront_charge || 0), 0);
-          const hourlyTurnover = logs.reduce((s, l) => s + Number(l.total_charge || 0), 0);
-          const totalTurnover = +(upfrontTurnover + hourlyTurnover).toFixed(2);
+          const periodReqs = requests.filter(r => r.status !== 'ΑΚΥΡΩΘΗΚΕ' && matchesPeriod(r, selectedPeriod));
+          const periodLogs = logs.filter(l => matchesPeriod(l, selectedPeriod));
+          const upfrontTurnover = periodReqs.reduce((s, r) => s + Number(r.upfront_charge || 0), 0);
+          const hourlyTurnover = periodLogs.reduce((s, l) => s + Number(l.total_charge || 0), 0);
+          const periodTurnover = +(upfrontTurnover + hourlyTurnover).toFixed(2);
 
           const allWithBal = students.map(s => ({ ...s, bal: getStudentBalance(s) }));
           const studentDebts = allWithBal.filter(s => s.bal > 0);
@@ -901,6 +1118,9 @@
 
           const tutorOwed = tutors.map(t => ({ ...t, bal: getTutorBalance(t.id) })).filter(t => t.bal > 0);
           const totalTutorOwed = +tutorOwed.reduce((s, x) => s + x.bal, 0).toFixed(2);
+
+          // Καθαρό Ταμείο (θεωρητικό) αν γίνονταν όλες οι εισπράξεις & πληρωμές
+          const theoreticalCash = +(cashNow + totalStudentDebt - totalTutorOwed).toFixed(2);
 
           const debtsCard = `
             <div class="bg-white rounded-2xl p-4 border border-slate-200 space-y-2.5 shadow-sm">
@@ -948,21 +1168,26 @@
             </div>`;
 
           container.innerHTML = `
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div class="bg-red-800 text-white rounded-2xl p-4">
-                <p class="text-xs text-red-200">Τρέχον Ταμείο</p>
-                <p class="text-2xl font-extrabold mt-0.5">${cashNow} €</p>
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              <div class="bg-red-800 text-white rounded-2xl p-3.5">
+                <p class="text-[11px] text-red-200">Τρέχον Ταμείο</p>
+                <p class="text-xl font-extrabold mt-0.5">${cashNow} €</p>
               </div>
-              <div class="bg-white rounded-2xl p-4 border border-slate-200">
-                <p class="text-xs text-slate-500">Συνολικός Τζίρος</p>
-                <p class="text-2xl font-extrabold text-slate-900 mt-0.5">${totalTurnover} €</p>
+              <div class="bg-slate-900 text-white rounded-2xl p-3.5">
+                <p class="text-[11px] text-slate-300">Καθαρό Ταμείο (Θεωρ.)</p>
+                <p class="text-xl font-extrabold mt-0.5">${theoreticalCash} €</p>
+                <p class="text-[9px] text-slate-400">Ταμείο + Οφειλές − Καθηγ.</p>
               </div>
-              <div class="bg-white rounded-2xl p-4 border border-slate-200">
-                <p class="text-xs text-slate-500">Οφειλές Φοιτητών</p>
+              <div class="bg-white rounded-2xl p-3.5 border border-slate-200">
+                <p class="text-[11px] text-slate-500">${selectedPeriod === 'ALL' ? 'Συνολικός Τζίρος' : 'Τζίρος Περιόδου'}</p>
+                <p class="text-xl font-extrabold text-slate-900 mt-0.5">${periodTurnover} €</p>
+              </div>
+              <div class="bg-white rounded-2xl p-3.5 border border-slate-200">
+                <p class="text-[11px] text-slate-500">Οφειλές Φοιτητών</p>
                 <p class="text-xl font-extrabold text-amber-600 mt-0.5">${totalStudentDebt} €</p>
               </div>
-              <div class="bg-white rounded-2xl p-4 border border-slate-200">
-                <p class="text-xs text-slate-500">Υπόλοιπα Καθηγητών</p>
+              <div class="bg-white rounded-2xl p-3.5 border border-slate-200">
+                <p class="text-[11px] text-slate-500">Υπόλοιπα Καθηγητών</p>
                 <p class="text-xl font-extrabold text-red-700 mt-0.5">${totalTutorOwed} €</p>
               </div>
             </div>
@@ -981,36 +1206,94 @@
         }
 
         else if (currentTab === 'admin_payments') {
+          const filteredPayments = payments.filter(p => {
+            if (!matchesPeriod(p, paymentFilterPeriod)) return false;
+            if (paymentFilterType !== 'ALL' && p.type !== paymentFilterType) return false;
+            if (paymentFilterCat !== 'ALL') {
+              if (p.type !== 'EXPENSE') return false;
+              if (getPaymentExpenseCategory(p) !== paymentFilterCat) return false;
+            }
+            return true;
+          });
+
+          const sumIn = +filteredPayments.filter(p => p.type === 'STUDENT_PAYMENT' || p.type === 'OTHER_INCOME').reduce((s, p) => s + Number(p.amount || 0), 0).toFixed(2);
+          const sumOut = +filteredPayments.filter(p => p.type === 'EXPENSE' || p.type === 'TUTOR_PAYOUT').reduce((s, p) => s + Number(p.amount || 0), 0).toFixed(2);
+          const allCatNames = Array.from(new Set([
+            ...expenseCategories.map(c => c.name),
+            ...payments.filter(p => p.type === 'EXPENSE').map(p => getPaymentExpenseCategory(p))
+          ]));
+
           const actions = `
             <div class="grid grid-cols-3 gap-2">
               <button onclick="openPaymentModal('STUDENT_PAYMENT')" class="bg-emerald-600 text-white py-2.5 px-2 rounded-xl font-bold text-xs">+ Είσπραξη</button>
               <button onclick="openPaymentModal('TUTOR_PAYOUT')" class="bg-slate-800 text-white py-2.5 px-2 rounded-xl font-bold text-xs">- Καθηγητής</button>
               <button onclick="openPaymentModal('EXPENSE')" class="bg-red-800 text-white py-2.5 px-2 rounded-xl font-bold text-xs">- Έξοδο</button>
+            </div>
+            <div class="bg-white rounded-2xl p-3 border border-slate-200 space-y-2.5 shadow-sm">
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <select onchange="paymentFilterPeriod = this.value; render();" class="border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-semibold bg-slate-50">
+                  ${buildPeriodOptionsHtml(paymentFilterPeriod, true)}
+                </select>
+                <select onchange="paymentFilterType = this.value; if(this.value !== 'EXPENSE') paymentFilterCat = 'ALL'; render();" class="border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-semibold bg-slate-50">
+                  <option value="ALL" ${paymentFilterType === 'ALL' ? 'selected' : ''}>Όλες οι Κινήσεις</option>
+                  <option value="STUDENT_PAYMENT" ${paymentFilterType === 'STUDENT_PAYMENT' ? 'selected' : ''}>Εισπράξεις Φοιτητών</option>
+                  <option value="TUTOR_PAYOUT" ${paymentFilterType === 'TUTOR_PAYOUT' ? 'selected' : ''}>Πληρωμές Καθηγητών</option>
+                  <option value="EXPENSE" ${paymentFilterType === 'EXPENSE' ? 'selected' : ''}>Έξοδα</option>
+                  <option value="OTHER_INCOME" ${paymentFilterType === 'OTHER_INCOME' ? 'selected' : ''}>Λοιπά Έσοδα</option>
+                </select>
+                <select onchange="paymentFilterCat = this.value; if(this.value !== 'ALL') paymentFilterType = 'EXPENSE'; render();" class="border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-semibold bg-slate-50">
+                  <option value="ALL" ${paymentFilterCat === 'ALL' ? 'selected' : ''}>Όλες οι Κατηγορίες Εξόδων</option>
+                  ${allCatNames.map(c => `<option value="${c}" ${paymentFilterCat === c ? 'selected' : ''}>${c}</option>`).join('')}
+                </select>
+              </div>
+              <div class="flex flex-wrap justify-between items-center text-xs px-1 text-slate-600">
+                <span>Εμφανίζονται: <strong>${filteredPayments.length}</strong> κινήσεις</span>
+                <div class="flex gap-3">
+                  <span class="text-emerald-700 font-bold">Είσοδοι: +${sumIn}€</span>
+                  <span class="text-rose-700 font-bold">Έξοδοι: -${sumOut}€</span>
+                </div>
+              </div>
             </div>`;
 
-          const list = payments.map(p => {
+          const list = filteredPayments.map(p => {
             const isIncome = p.type === 'STUDENT_PAYMENT' || p.type === 'OTHER_INCOME';
             const semTag = getRecordSemester(p);
+            const expCat = p.type === 'EXPENSE' ? getPaymentExpenseCategory(p) : '';
             const label = p.type === 'STUDENT_PAYMENT'
               ? `${p.students?.last_name || ''} ${p.students?.first_name || ''} (${p.receipt_type})`
               : p.type === 'TUTOR_PAYOUT'
                 ? `Πληρωμή: ${p.tutors?.short_name || ''}`
-                : (p.expense_category || p.notes || 'Έξοδο');
+                : (expCat || p.notes || 'Έξοδο');
             const subNote = p.type === 'EXPENSE'
-              ? (p.notes && p.notes !== p.expense_category ? p.notes : '')
+              ? (p.notes && p.notes !== expCat ? p.notes : '')
               : (p.notes || '');
+
+            const invoiceToggle = p.type === 'EXPENSE'
+              ? `<button onclick="toggleExpenseInvoice('${p.id}', ${!p.has_invoice})" class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${p.has_invoice ? 'bg-blue-50 text-blue-800 border-blue-200' : 'bg-slate-50 text-slate-400 border-slate-200'}">
+                   ${p.has_invoice ? '✓ Τιμολόγιο' : '+ Τιμολόγιο'}
+                 </button>`
+              : '';
+
+            const receiptLinks = (p.type === 'STUDENT_PAYMENT' && p.receipt_url)
+              ? `<div class="flex items-center gap-2 mt-1">
+                   <a href="${p.receipt_url}" target="_blank" class="text-[11px] font-bold text-blue-700 underline">📎 Προβολή Απόδειξης</a>
+                   ${p.students?.email ? `<button onclick="emailStudentReceipt('${p.id}')" class="text-[11px] font-bold text-emerald-700 underline">✉️ Αποστολή στο email</button>` : ''}
+                 </div>`
+              : '';
 
             return `
               <div class="bg-white rounded-xl p-3.5 shadow-sm border border-slate-200 flex justify-between items-center gap-2">
-                <div>
-                  <div class="flex items-center gap-1.5">
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1.5 flex-wrap">
                     <span class="text-[11px] text-slate-400">${p.payment_date}</span>
                     <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">${semTag}</span>
+                    ${invoiceToggle}
                   </div>
                   <p class="font-bold text-sm mt-0.5">${label}</p>
                   ${subNote ? `<p class="text-xs text-slate-500">${subNote}</p>` : ''}
+                  ${receiptLinks}
                 </div>
-                <div class="text-right shrink-0">
+                <div class="text-right shrink-0 space-y-1">
                   <div class="font-extrabold text-sm ${isIncome ? 'text-emerald-600' : 'text-red-700'}">
                     ${isIncome ? '+' : '-'}${p.amount}€
                   </div>
@@ -1019,7 +1302,7 @@
               </div>`;
           }).join('');
 
-          container.innerHTML = actions + (list || '<p class="text-center text-slate-500 py-6 text-sm">Δεν υπάρχουν καταχωρημένες κινήσεις.</p>');
+          container.innerHTML = actions + (list || '<p class="text-center text-slate-500 py-6 text-sm">Δεν βρέθηκαν κινήσεις με αυτά τα φίλτρα.</p>');
         }
 
         else if (currentTab === 'admin_students') {
@@ -1119,14 +1402,33 @@
               </div>
             </div>`).join('');
 
-          const catRows = expenseCategories.map(c => `
-            <div class="flex justify-between items-center py-2 border-b last:border-0 border-slate-100 gap-2">
-              <input id="cat_name_${c.id}" type="text" value="${c.name}" class="flex-1 border rounded-lg px-2.5 py-1.5 text-xs font-bold uppercase" />
-              <button onclick="renameExpenseCategory('${c.id}')" class="bg-slate-800 text-white text-xs px-2.5 py-1.5 rounded-lg font-semibold">Αποθήκευση</button>
-              <button onclick="deleteExpenseCategory('${c.id}', '${c.name}')" class="bg-rose-50 text-rose-700 border border-rose-200 text-xs px-2.5 py-1.5 rounded-lg font-semibold">Διαγραφή</button>
-            </div>`).join('');
+          const usedCatSet = new Set(payments.filter(p => p.type === 'EXPENSE').map(p => getPaymentExpenseCategory(p)));
+
+          const catRows = expenseCategories.map((c, idx) => {
+            const isUsed = usedCatSet.has(c.name);
+            const isActive = c.is_active !== false;
+            return `
+              <div class="flex flex-wrap sm:flex-nowrap justify-between items-center py-2.5 gap-2 ${!isActive ? 'opacity-60' : ''}">
+                <div class="flex items-center gap-1">
+                  <button onclick="moveExpenseCategory(${idx}, -1)" ${idx === 0 ? 'disabled' : ''} class="px-2 py-1 rounded-lg border text-xs font-bold bg-slate-50 disabled:opacity-30" title="Πάνω">↑</button>
+                  <button onclick="moveExpenseCategory(${idx}, 1)" ${idx === expenseCategories.length - 1 ? 'disabled' : ''} class="px-2 py-1 rounded-lg border text-xs font-bold bg-slate-50 disabled:opacity-30" title="Κάτω">↓</button>
+                </div>
+                <input id="cat_name_${c.id}" type="text" value="${c.name}" class="flex-1 min-w-[140px] border rounded-lg px-2.5 py-1.5 text-xs font-bold uppercase" />
+                <div class="flex items-center gap-1.5">
+                  <button onclick="renameExpenseCategory('${c.id}')" class="bg-slate-800 text-white text-xs px-2.5 py-1.5 rounded-lg font-semibold">Αποθήκευση</button>
+                  <button onclick="toggleExpenseCategoryActive('${c.id}', ${!isActive})" class="text-xs px-2.5 py-1.5 rounded-lg font-semibold border ${isActive ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}">
+                    ${isActive ? 'Απόκρυψη' : 'Εμφάνιση'}
+                  </button>
+                  ${isUsed
+                    ? `<span class="text-[10px] font-semibold text-slate-400 px-1.5" title="Έχει χρησιμοποιηθεί σε παλιά έξοδα — δεν διαγράφεται">🔒 Σε χρήση</span>`
+                    : `<button onclick="deleteExpenseCategory('${c.id}', '${c.name}')" class="bg-rose-50 text-rose-700 border border-rose-200 text-xs px-2.5 py-1.5 rounded-lg font-semibold">Διαγραφή</button>`
+                  }
+                </div>
+              </div>`;
+          }).join('');
 
           container.innerHTML = `
+            <h2 class="text-lg font-extrabold text-slate-900">Τιμές και Κατηγορίες Εξόδων</h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
               <div class="bg-white rounded-2xl p-4 border border-slate-200 space-y-2">
                 <h3 class="font-bold text-sm text-red-800">Πακέτα & Τιμές Φοιτητών (€)</h3>
@@ -1141,7 +1443,7 @@
             <div class="bg-white rounded-2xl p-4 border border-slate-200 space-y-3">
               <div>
                 <h3 class="font-bold text-sm text-red-800">Κατηγορίες Εξόδων</h3>
-                <p class="text-[11px] text-slate-400">Πρόσθεσε, μετονόμασε ή διέγραψε κατηγορίες που εμφανίζονται στο «- Έξοδο».</p>
+                <p class="text-[11px] text-slate-400">Άλλαξε σειρά (↑/↓), πρόσθεσε ή απόκρυψε κατηγορίες. Παλιές κατηγορίες με κινήσεις δεν διαγράφονται για να διατηρείται το ιστορικό.</p>
               </div>
               <div class="flex gap-2">
                 <input id="newExpCatInput" type="text" placeholder="Νέα κατηγορία εξόδου (π.χ. ΕΝΟΙΚΙΟ)..." class="flex-1 border rounded-xl px-3 py-2 text-xs font-semibold uppercase" />
@@ -1225,20 +1527,11 @@
     }
 
     function openStudentDiaryModal(studentId) {
+      activeDiaryStudentId = studentId;
       const s = students.find(x => x.id === studentId);
       if (!s) return;
 
       const bal = getStudentBalance(s);
-      const stLogs = logs.filter(l => l.student_id === s.id);
-      const stReqs = requests.filter(r => r.student_id === s.id && r.status !== 'ΑΚΥΡΩΘΗΚΕ');
-      const stPayments = payments.filter(p => p.student_id === s.id && p.type === 'STUDENT_PAYMENT');
-
-      const totalHrs = stLogs.reduce((sum, l) => sum + Number(l.hours || 0), 0);
-      const upfrontCharge = stReqs.reduce((sum, r) => sum + Number(r.upfront_charge || 0), 0);
-      const hourlyCharge = stLogs.reduce((sum, l) => sum + Number(l.total_charge || 0), 0);
-      const totalCharged = +(upfrontCharge + hourlyCharge).toFixed(2);
-      const totalCredited = +stPayments.reduce((sum, p) => sum + Number(p.credited_amount || 0), 0).toFixed(2);
-
       document.getElementById('sdTitle').textContent = `${s.last_name} ${s.first_name}`;
       document.getElementById('sdSubtitle').textContent = `${s.institution || ''}${s.department ? ' • ' + s.department : ''}${s.phone ? ' • ' + s.phone : ''}`;
 
@@ -1254,9 +1547,30 @@
         badgeEl.textContent = 'Εξοφλημένος';
       }
 
+      const semSel = document.getElementById('sdSemesterSelect');
+      semSel.innerHTML = buildPeriodOptionsHtml('ALL', true);
+      renderStudentDiaryBody();
+      document.getElementById('studentDiaryModal').classList.remove('hidden');
+    }
+
+    function renderStudentDiaryBody() {
+      const s = students.find(x => x.id === activeDiaryStudentId);
+      if (!s) return;
+      const periodVal = document.getElementById('sdSemesterSelect').value || 'ALL';
+
+      const stLogs = logs.filter(l => l.student_id === s.id && matchesPeriod(l, periodVal));
+      const stReqs = requests.filter(r => r.student_id === s.id && r.status !== 'ΑΚΥΡΩΘΗΚΕ' && matchesPeriod(r, periodVal));
+      const stPayments = payments.filter(p => p.student_id === s.id && p.type === 'STUDENT_PAYMENT' && matchesPeriod(p, periodVal));
+
+      const totalHrs = stLogs.reduce((sum, l) => sum + Number(l.hours || 0), 0);
+      const upfrontCharge = stReqs.reduce((sum, r) => sum + Number(r.upfront_charge || 0), 0);
+      const hourlyCharge = stLogs.reduce((sum, l) => sum + Number(l.total_charge || 0), 0);
+      const totalCharged = +(upfrontCharge + hourlyCharge).toFixed(2);
+      const totalCredited = +stPayments.reduce((sum, p) => sum + Number(p.credited_amount || 0), 0).toFixed(2);
+
       document.getElementById('sdSummary').innerHTML = `
         <div class="bg-slate-50 border border-slate-200 rounded-xl p-2">
-          <p class="text-[10px] text-slate-500">Σύνολο Ωρών</p>
+          <p class="text-[10px] text-slate-500">Ώρες Περιόδου</p>
           <p class="font-extrabold text-sm text-red-800">${totalHrs} ώρ.</p>
         </div>
         <div class="bg-slate-50 border border-slate-200 rounded-xl p-2">
@@ -1270,16 +1584,16 @@
 
       const reqsSection = stReqs.length ? `
         <div class="bg-red-50/60 border border-red-100 rounded-xl p-3 space-y-1">
-          <p class="text-[11px] font-bold text-red-800">Ενεργά / Εκκρεμή Μαθήματα</p>
+          <p class="text-[11px] font-bold text-red-800">Ενεργά / Εκκρεμή Μαθήματα (${periodVal === 'ALL' ? 'Όλα' : periodVal.replace(/^(SEM:|YEAR:)/, '')})</p>
           ${stReqs.map(r => `
-            <p class="text-xs text-slate-700">• <strong>${r.course_title_snapshot}</strong> (${r.tutors?.short_name || '-'} • ${r.status})</p>
+            <p class="text-xs text-slate-700">• <strong>${r.course_title_snapshot}</strong> (${r.tutors?.short_name || '-'} • ${r.status} • ${getRecordSemester(r)})</p>
           `).join('')}
         </div>` : '';
 
       const logsSection = stLogs.length ? stLogs.map(l => `
         <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1">
           <div class="flex justify-between items-center text-xs">
-            <span class="font-bold text-red-800">${l.lesson_date}</span>
+            <span class="font-bold text-red-800">${l.lesson_date} <span class="text-[10px] text-slate-400 font-normal">(${getRecordSemester(l)})</span></span>
             <span class="font-semibold text-slate-600">${l.tutors?.short_name || ''} • ${l.hours} ώρ. (${l.num_students || 1} άτ.)</span>
           </div>
           <p class="font-bold text-xs text-slate-900">${l.course_title || ''}</p>
@@ -1288,10 +1602,9 @@
             <span>${l.category || ''}</span>
             <span class="font-bold text-slate-700">${Number(l.total_charge || 0) > 0 ? l.total_charge + '€' : (String(l.category || '').includes('Πακέτο') ? 'Πακέτο' : '0€')}</span>
           </div>
-        </div>`).join('') : '<p class="text-center text-slate-400 py-6 text-xs">Δεν έχουν καταχωρηθεί μαθήματα ακόμα.</p>';
+        </div>`).join('') : '<p class="text-center text-slate-400 py-6 text-xs">Δεν υπάρχουν καταχωρημένα μαθήματα για αυτή την περίοδο.</p>';
 
       document.getElementById('sdBody').innerHTML = reqsSection + logsSection;
-      document.getElementById('studentDiaryModal').classList.remove('hidden');
     }
 
     // --- ΛΕΙΤΟΥΡΓΙΕΣ ΚΑΘΗΓΗΤΗ ---
@@ -1435,8 +1748,11 @@
     // --- ΛΕΙΤΟΥΡΓΙΕΣ ADMIN ---
     function openNewRequestModal() {
       const activeTutors = tutors.filter(t => t.is_active !== false);
+      const sems = getAvailableSemesters();
+      const curSem = inferSemesterFromDate(new Date().toISOString().slice(0, 10));
       document.getElementById('nrStudentSelect').innerHTML = students.map(s => `<option value="${s.id}">${s.last_name} ${s.first_name} (${s.institution || ''})</option>`).join('');
       document.getElementById('nrTutorSelect').innerHTML = activeTutors.map(t => `<option value="${t.id}">${t.short_name}</option>`).join('');
+      document.getElementById('nrSemester').innerHTML = sems.map(s => `<option value="${s}" ${s === curSem ? 'selected' : ''}>${s}</option>`).join('');
       document.getElementById('nrPackageSelect').innerHTML = packages.map(p =>
         `<option value="${p.name}" data-hours="${p.package_hours}" data-price="${p.total_price}">${p.name} (${p.total_price}€)</option>`
       ).join('');
@@ -1512,7 +1828,7 @@
         student_id: studentId,
         course_title_snapshot: course,
         tutor_id: document.getElementById('nrTutorSelect').value,
-        semester_label: document.getElementById('nrSemester').value.trim(),
+        semester_label: document.getElementById('nrSemester').value,
         lesson_type: pkgName,
         package_hours: isPackage ? pkgHours : 0,
         upfront_charge: isPackage ? enteredAmount : 0,
@@ -1704,6 +2020,7 @@
       render();
     }
 
+    // --- ΤΙΜΕΣ & ΚΑΤΗΓΟΡΙΕΣ ΕΞΟΔΩΝ ---
     async function updatePackagePrice(id) {
       const val = Number(document.getElementById(`pkg_${id}`).value);
       const { error } = await db.from('pricing_packages').update({ total_price: val }).eq('id', id);
@@ -1726,7 +2043,7 @@
       const inp = document.getElementById('newExpCatInput');
       const name = inp.value.trim().toUpperCase();
       if (!name) { alert('Γράψε όνομα κατηγορίας.'); return; }
-      const { error } = await db.from('expense_categories').insert({ name, sort_order: expenseCategories.length + 1 });
+      const { error } = await db.from('expense_categories').insert({ name, sort_order: expenseCategories.length + 1, is_active: true });
       if (error) { alert('Σφάλμα: ' + error.message); return; }
       inp.value = '';
       showToast('Η κατηγορία εξόδου προστέθηκε!');
@@ -1745,6 +2062,27 @@
       render();
     }
 
+    async function toggleExpenseCategoryActive(id, newState) {
+      const { error } = await db.from('expense_categories').update({ is_active: newState }).eq('id', id);
+      if (error) { alert('Σφάλμα: ' + error.message); return; }
+      showToast(newState ? 'Η κατηγορία ενεργοποιήθηκε!' : 'Η κατηγορία αποκρύφτηκε από τα νέα έξοδα.');
+      await loadAllData();
+      render();
+    }
+
+    async function moveExpenseCategory(idx, dir) {
+      const targetIdx = idx + dir;
+      if (targetIdx < 0 || targetIdx >= expenseCategories.length) return;
+      const a = expenseCategories[idx];
+      const b = expenseCategories[targetIdx];
+      await Promise.all([
+        db.from('expense_categories').update({ sort_order: targetIdx + 1 }).eq('id', a.id),
+        db.from('expense_categories').update({ sort_order: idx + 1 }).eq('id', b.id)
+      ]);
+      await loadAllData();
+      render();
+    }
+
     async function deleteExpenseCategory(id, name) {
       if (!confirm(`Να διαγραφεί η κατηγορία «${name}»;`)) return;
       const { error } = await db.from('expense_categories').delete().eq('id', id);
@@ -1754,12 +2092,29 @@
       render();
     }
 
+    // --- ΚΙΝΗΣΕΙΣ / ΠΛΗΡΩΜΕΣ / ΕΞΟΔΑ ---
+    function syncPaymentSemesterFromDate() {
+      const dt = document.getElementById('pmDate').value;
+      const sem = inferSemesterFromDate(dt);
+      const sel = document.getElementById('pmSemester');
+      if (sel && Array.from(sel.options).some(o => o.value === sem)) {
+        sel.value = sem;
+      }
+    }
+
     function openPaymentModal(type, entityId = '', defaultAmount = '') {
       document.getElementById('pmType').value = type;
       const todayStr = new Date().toISOString().split('T')[0];
       document.getElementById('pmDate').value = todayStr;
       document.getElementById('pmAmount').value = defaultAmount;
       document.getElementById('pmNotes').value = '';
+      document.getElementById('pmHasInvoice').checked = false;
+      const fileInp = document.getElementById('pmReceiptFile');
+      if (fileInp) fileInp.value = '';
+
+      const sems = getAvailableSemesters();
+      const curSem = inferSemesterFromDate(todayStr);
+      document.getElementById('pmSemester').innerHTML = sems.map(s => `<option value="${s}" ${s === curSem ? 'selected' : ''}>${s}</option>`).join('');
 
       document.getElementById('pmStudentWrap').classList.toggle('hidden', type !== 'STUDENT_PAYMENT');
       document.getElementById('pmReceiptWrap').classList.toggle('hidden', type !== 'STUDENT_PAYMENT');
@@ -1769,7 +2124,8 @@
       const catSelect = document.getElementById('pmExpCategory');
       document.getElementById('pmExpCatWrap').classList.toggle('hidden', !isExpense);
       if (isExpense && catSelect) {
-        catSelect.innerHTML = expenseCategories.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+        const activeCats = expenseCategories.filter(c => c.is_active !== false);
+        catSelect.innerHTML = (activeCats.length ? activeCats : expenseCategories).map(c => `<option value="${c.name}">${c.name}</option>`).join('');
       }
 
       if (type === 'STUDENT_PAYMENT') {
@@ -1791,6 +2147,11 @@
       const rec = document.getElementById('pmReceipt').value;
       const studentId = document.getElementById('pmStudentSelect').value;
       const previewEl = document.getElementById('pmCreditPreview');
+      const fileWrap = document.getElementById('pmReceiptFileWrap');
+
+      if (fileWrap) {
+        fileWrap.classList.toggle('hidden', rec !== 'ΜΕ ΑΠΟΔΕΙΞΗ');
+      }
 
       if (!amt || amt <= 0) {
         previewEl.textContent = '';
@@ -1813,13 +2174,41 @@
       if (!amount || amount <= 0) { alert('Βάλε έγκυρο ποσό.'); return; }
 
       const payDate = document.getElementById('pmDate').value;
+      const semLabel = document.getElementById('pmSemester').value || inferSemesterFromDate(payDate);
       const rec = document.getElementById('pmReceipt').value;
       const studentId = type === 'STUDENT_PAYMENT' ? document.getElementById('pmStudentSelect').value : null;
+      const fileInp = document.getElementById('pmReceiptFile');
+      const receiptFile = (type === 'STUDENT_PAYMENT' && rec === 'ΜΕ ΑΠΟΔΕΙΞΗ' && fileInp && fileInp.files[0]) ? fileInp.files[0] : null;
+
+      if (type === 'STUDENT_PAYMENT' && rec === 'ΜΕ ΑΠΟΔΕΙΞΗ' && !receiptFile) {
+        if (!confirm('Δεν έχεις επισυνάψει αρχείο απόδειξης. Θέλεις να συνεχίσεις χωρίς επισύναψη;')) return;
+      }
+
+      const btn = document.getElementById('pmSaveBtn');
+      btn.textContent = 'Αποθήκευση...';
+      btn.disabled = true;
+
+      let receiptUrl = null;
+      if (receiptFile) {
+        const ext = receiptFile.name.split('.').pop();
+        const path = `${payDate}_${Date.now()}.${ext}`;
+        const { error: upErr } = await db.storage.from('receipts').upload(path, receiptFile);
+        if (upErr) {
+          btn.textContent = 'Αποθήκευση';
+          btn.disabled = false;
+          alert('Σφάλμα ανεβάσματος απόδειξης (έλεγξε ότι έτρεξες το SQL για το bucket receipts): ' + upErr.message);
+          return;
+        }
+        const { data: pubData } = db.storage.from('receipts').getPublicUrl(path);
+        receiptUrl = pubData.publicUrl;
+      }
+
       const credited = type === 'STUDENT_PAYMENT'
         ? calcCreditedBreakdown(studentId, amount, rec).credited
         : amount;
 
       const expCat = type === 'EXPENSE' ? (document.getElementById('pmExpCategory')?.value || 'ΛΟΙΠΑ') : null;
+      const hasInvoice = type === 'EXPENSE' ? Boolean(document.getElementById('pmHasInvoice')?.checked) : false;
       const rawNote = document.getElementById('pmNotes').value.trim();
       const finalNote = type === 'EXPENSE'
         ? (rawNote ? `${expCat} — ${rawNote}` : expCat)
@@ -1827,23 +2216,186 @@
 
       const payload = {
         payment_date: payDate,
-        semester_label: inferSemesterFromDate(payDate),
+        semester_label: semLabel,
         type,
         student_id: studentId,
         tutor_id: type === 'TUTOR_PAYOUT' ? document.getElementById('pmTutorSelect').value : null,
         amount,
         credited_amount: credited,
         receipt_type: type === 'STUDENT_PAYMENT' ? rec : null,
+        receipt_url: receiptUrl,
         expense_category: expCat,
+        has_invoice: hasInvoice,
         notes: finalNote
       };
 
       const { error } = await db.from('payments').insert(payload);
+      btn.textContent = 'Αποθήκευση';
+      btn.disabled = false;
       if (error) { alert('Σφάλμα: ' + error.message); return; }
+
       closeModal('paymentModal');
       showToast('Η οικονομική κίνηση καταχωρήθηκε!');
       await loadAllData();
       render();
+    }
+
+    async function toggleExpenseInvoice(paymentId, newState) {
+      const { error } = await db.from('payments').update({ has_invoice: newState }).eq('id', paymentId);
+      if (error) { alert('Σφάλμα: ' + error.message); return; }
+      showToast(newState ? 'Δηλώθηκε ότι κόπηκε τιμολόγιο.' : 'Αφαιρέθηκε η ένδειξη τιμολογίου.');
+      await loadAllData();
+      render();
+    }
+
+    function emailStudentReceipt(paymentId) {
+      const p = payments.find(x => x.id === paymentId);
+      if (!p || !p.students?.email) return;
+      const name = p.students.first_name || p.students.last_name || '';
+      const subject = encodeURIComponent(`Απόδειξη Πληρωμής (${p.payment_date}) — ΠΡΟΩΣΗ STEM`);
+      const body = encodeURIComponent(
+        `Καλησπέρα ${name},\n\nΣου αποστέλλουμε την απόδειξη για την πληρωμή ποσού ${p.amount}€ (${p.payment_date}):\n${p.receipt_url}\n\nΣτη διάθεσή σου για οποιαδήποτε διευκρίνιση.\n\nΜε εκτίμηση,\nΗ Ομάδα της ΠΡΟΩΣΗ STEM`
+      );
+      window.open(`mailto:${p.students.email}?subject=${subject}&body=${body}`, '_blank');
+    }
+
+    // --- ΕΞΑΓΩΓΗ EXCEL & BACKUP ---
+    function openExportModal() {
+      document.getElementById('exportModal').classList.remove('hidden');
+    }
+
+    function buildExportData() {
+      const reqRows = requests.map((r, i) => ({
+        'Α/Α': i + 1,
+        'Ημερομηνία': r.request_date || '',
+        'Εξάμηνο': getRecordSemester(r),
+        'Φοιτητής': `${r.students?.last_name || ''} ${r.students?.first_name || ''}`.trim(),
+        'Μάθημα': r.course_title_snapshot || '',
+        'Καθηγητής': r.tutors?.short_name || '',
+        'Πρόγραμμα': r.lesson_type || '',
+        'Κατάσταση': r.status || '',
+        'Ημ. Έναρξης': r.start_date || '',
+        'Ώρες Πακέτου': r.package_hours || 0,
+        'Εφάπαξ Χρέωση': r.upfront_charge || 0,
+        'Ωριαία Χρέωση': r.student_hourly_rate || 0,
+        'Unistudents': r.is_unistudents ? 'ΝΑΙ' : 'ΟΧΙ',
+        'Σχόλια Φοιτητή': r.student_comments || '',
+        'Σημειώσεις Καθηγητή': r.tutor_notes || ''
+      }));
+
+      const incomeRows = payments.filter(p => p.type === 'STUDENT_PAYMENT' || p.type === 'OTHER_INCOME').map(p => ({
+        'Ημερομηνία': p.payment_date || '',
+        'Εξάμηνο': getRecordSemester(p),
+        'Τύπος': p.type === 'STUDENT_PAYMENT' ? 'Είσπραξη Φοιτητή' : 'Λοιπό Έσοδο',
+        'Φοιτητής': p.students ? `${p.students.last_name} ${p.students.first_name}` : '',
+        'Ποσό Ταμείου (€)': p.amount,
+        'Πιστωμένο Ποσό (€)': p.credited_amount,
+        'Απόδειξη': p.receipt_type || '',
+        'Αρχείο Απόδειξης': p.receipt_url || '',
+        'Σημειώσεις': p.notes || ''
+      }));
+
+      const expenseRows = payments.filter(p => p.type === 'EXPENSE' || p.type === 'TUTOR_PAYOUT').map(p => ({
+        'Ημερομηνία': p.payment_date || '',
+        'Εξάμηνο': getRecordSemester(p),
+        'Τύπος': p.type === 'TUTOR_PAYOUT' ? 'Πληρωμή Καθηγητή' : 'Λειτουργικό Έξοδο',
+        'Κατηγορία / Καθηγητής': p.type === 'TUTOR_PAYOUT' ? (p.tutors?.short_name || '') : getPaymentExpenseCategory(p),
+        'Ποσό (€)': p.amount,
+        'Τιμολόγιο': p.has_invoice ? 'ΝΑΙ' : 'ΟΧΙ',
+        'Σημειώσεις': p.notes || ''
+      }));
+
+      const allPayRows = payments.map(p => ({
+        'Ημερομηνία': p.payment_date || '',
+        'Εξάμηνο': getRecordSemester(p),
+        'Τύπος': p.type,
+        'Φοιτητής': p.students ? `${p.students.last_name} ${p.students.first_name}` : '',
+        'Καθηγητής': p.tutors?.short_name || '',
+        'Κατηγορία Εξόδου': p.type === 'EXPENSE' ? getPaymentExpenseCategory(p) : '',
+        'Ποσό (€)': p.amount,
+        'Πίστωση (€)': p.credited_amount,
+        'Απόδειξη': p.receipt_type || '',
+        'Τιμολόγιο': p.has_invoice ? 'ΝΑΙ' : 'ΟΧΙ',
+        'Σημειώσεις': p.notes || ''
+      }));
+
+      const tutorRows = tutors.map(t => ({
+        'Ονοματεπώνυμο': t.full_name || '',
+        'Σύντομο Όνομα': t.short_name || '',
+        'Email': t.email || '',
+        'Τηλέφωνο': t.phone || '',
+        'Ρόλος': t.role || '',
+        'Ενεργός': t.is_active !== false ? 'ΝΑΙ' : 'ΟΧΙ',
+        'Υπόλοιπο (€)': getTutorBalance(t.id),
+        'Σημειώσεις': t.notes || ''
+      }));
+
+      const studentRows = students.map(s => ({
+        'Επίθετο': s.last_name || '',
+        'Όνομα': s.first_name || '',
+        'Ίδρυμα': s.institution || '',
+        'Σχολή': s.department || '',
+        'Τηλέφωνο': s.phone || '',
+        'Email': s.email || '',
+        'Διεύθυνση': s.address || '',
+        'Υπόλοιπο (€)': getStudentBalance(s),
+        'Σημειώσεις': s.notes || ''
+      }));
+
+      const logRows = logs.map(l => ({
+        'Ημερομηνία': l.lesson_date || '',
+        'Εξάμηνο': getRecordSemester(l),
+        'Καθηγητής': l.tutors?.short_name || '',
+        'Φοιτητής': l.students ? `${l.students.last_name} ${l.students.first_name}` : 'PROMO',
+        'Μάθημα': l.course_title || '',
+        'Κατηγορία': l.category || '',
+        'Ώρες': l.hours,
+        'Άτομα': l.num_students || 1,
+        'Χρέωση (€)': l.total_charge || 0,
+        'Αμοιβή Καθηγητή (€)': l.tutor_earning || 0,
+        'Unistudents (€)': l.unistudents_earning || 0,
+        'Κέρδος Κέντρου (€)': l.center_earning || 0,
+        'Περιεχόμενο': l.content || ''
+      }));
+
+      return { requests: reqRows, income: incomeRows, expenses: expenseRows, payments: allPayRows, tutors: tutorRows, students: studentRows, logs: logRows };
+    }
+
+    function exportSingleSheet(key) {
+      if (typeof XLSX === 'undefined') { alert('Η βιβλιοθήκη Excel δεν φορτώθηκε ακόμα.'); return; }
+      const data = buildExportData();
+      const mapNames = {
+        requests: ['Αιτήματα', 'PROOSI_Aitimata'],
+        income: ['Έσοδα', 'PROOSI_Esoda'],
+        expenses: ['Έξοδα', 'PROOSI_Exoda'],
+        payments: ['Κινήσεις', 'PROOSI_Kiniseis'],
+        tutors: ['Καθηγητές', 'PROOSI_Kathigites'],
+        students: ['Φοιτητές', 'PROOSI_Foitites'],
+        logs: ['Ημερολόγιο', 'PROOSI_Imerologio']
+      };
+      const [sheetName, fileBase] = mapNames[key];
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(data[key]);
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      const today = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(wb, `${fileBase}_${today}.xlsx`);
+      showToast(`Κατέβηκε το αρχείο ${fileBase}_${today}.xlsx`);
+    }
+
+    function exportFullBackup() {
+      if (typeof XLSX === 'undefined') { alert('Η βιβλιοθήκη Excel δεν φορτώθηκε ακόμα.'); return; }
+      const data = buildExportData();
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.requests), 'Αιτήματα');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.logs), 'Ημερολόγιο Μαθημάτων');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.income), 'Έσοδα');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.expenses), 'Έξοδα');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.payments), 'Όλες οι Κινήσεις');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.students), 'Φοιτητές');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.tutors), 'Καθηγητές');
+      const today = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(wb, `PROOSI_FULL_BACKUP_${today}.xlsx`);
+      showToast(`Κατέβηκε το πλήρες backup PROOSI_FULL_BACKUP_${today}.xlsx`);
     }
 
     checkSession();
