@@ -70,7 +70,7 @@
     </header>
 
     <!-- Main Content -->
-    <main class="max-w-5xl mx-auto p-4 space-y-4">
+    <main id="mainContainer" class="max-w-5xl mx-auto p-4 space-y-4">
       <div id="statusMsg" class="hidden text-center text-sm py-2 px-3 rounded-lg bg-emerald-100 text-emerald-800 font-medium"></div>
       <div id="content" class="space-y-4"></div>
     </main>
@@ -830,7 +830,7 @@
       const [tRes, sRes, rRes, lRes, pRes, pkgRes, tierRes, catRes] = await Promise.all([
         db.from('tutors').select('*').order('short_name'),
         db.from('students').select('*').order('last_name'),
-        db.from('requests').select('*, students(last_name, first_name, phone, email, institution, department), tutors(short_name)').order('request_date', { ascending: false }),
+        db.from('requests').select('*, students(last_name, first_name, phone, email, institution, department), tutors(short_name)').order('request_number', { ascending: true }),
         db.from('lesson_logs').select('*, students(last_name, first_name), tutors(short_name)').order('lesson_date', { ascending: false }),
         db.from('payments').select('*, students(last_name, first_name, email), tutors(short_name)').order('payment_date', { ascending: false }),
         db.from('pricing_packages').select('*').order('sort_order'),
@@ -1133,6 +1133,13 @@
 
     function render() {
       const container = document.getElementById('content');
+      const mainEl = document.getElementById('mainContainer');
+      if (mainEl) {
+        const isWide = appMode === 'admin' && (currentTab === 'admin_requests' || currentTab === 'admin_courses');
+        mainEl.className = isWide
+          ? 'w-full max-w-[1600px] mx-auto px-2.5 sm:px-4 py-3 space-y-3'
+          : 'max-w-5xl mx-auto p-4 space-y-4';
+      }
 
       // ================= ΠΡΟΒΟΛΗ ΚΑΘΗΓΗΤΗ =================
       if (appMode === 'tutor') {
@@ -1261,33 +1268,41 @@
             return Math.max(0, Math.floor((now - d0) / (1000 * 60 * 60 * 24)));
           };
 
-          const hasAlarm = r => r.status === 'ΕΚΚΡΕΜΕΣ' && !(r.tutor_notes && r.tutor_notes.trim()) && getPendingDays(r) > 5;
+          const hasAnyComment = r => Boolean(
+            (r.tutor_notes && r.tutor_notes.trim()) ||
+            (r.student_comments && r.student_comments.trim())
+          );
+
+          // Alarm ΜΟΝΟ για εκκρεμή >5 ημέρες που ΔΕΝ έχουν καθόλου σχόλια
+          const hasAlarm = r => r.status === 'ΕΚΚΡΕΜΕΣ' && !hasAnyComment(r) && getPendingDays(r) > 5;
 
           const q = reqFilterSearch.trim().toLowerCase();
-          const filtered = requests.filter(r => {
-            if (!matchesPeriod(r, reqFilterPeriod)) return false;
-            if (reqFilterStatus !== 'ALL' && r.status !== reqFilterStatus) return false;
-            const inst = r.institution_snapshot || r.students?.institution || '';
-            const dept = r.department_snapshot || r.students?.department || '';
-            if (reqFilterInst !== 'ALL' && inst !== reqFilterInst) return false;
-            if (reqFilterDept !== 'ALL' && dept !== reqFilterDept) return false;
-            if (reqFilterTutor !== 'ALL') {
-              if (reqFilterTutor === 'ALT') {
-                if (!r.alt_tutor_name) return false;
-              } else if (r.tutor_id !== reqFilterTutor) return false;
-            }
-            if (reqFilterRef !== 'ALL' && (r.referral_source || '') !== reqFilterRef) return false;
-            if (reqFilterAlarmOnly && !hasAlarm(r)) return false;
-            if (q) {
-              const hay = `${r.request_number || ''} ${r.students?.last_name || ''} ${r.students?.first_name || ''} ${r.course_title_snapshot || ''} ${r.tutors?.short_name || ''} ${r.alt_tutor_name || ''} ${inst} ${dept}`.toLowerCase();
-              if (!hay.includes(q)) return false;
-            }
-            return true;
-          });
+          const filtered = requests
+            .filter(r => {
+              if (!matchesPeriod(r, reqFilterPeriod)) return false;
+              if (reqFilterStatus !== 'ALL' && r.status !== reqFilterStatus) return false;
+              const inst = r.institution_snapshot || r.students?.institution || '';
+              const dept = r.department_snapshot || r.students?.department || '';
+              if (reqFilterInst !== 'ALL' && inst !== reqFilterInst) return false;
+              if (reqFilterDept !== 'ALL' && dept !== reqFilterDept) return false;
+              if (reqFilterTutor !== 'ALL') {
+                if (reqFilterTutor === 'ALT') {
+                  if (!r.alt_tutor_name) return false;
+                } else if (r.tutor_id !== reqFilterTutor) return false;
+              }
+              if (reqFilterRef !== 'ALL' && (r.referral_source || '') !== reqFilterRef) return false;
+              if (reqFilterAlarmOnly && !hasAlarm(r)) return false;
+              if (q) {
+                const hay = `${r.request_number || ''} ${r.students?.last_name || ''} ${r.students?.first_name || ''} ${r.course_title_snapshot || ''} ${r.tutors?.short_name || ''} ${r.alt_tutor_name || ''} ${r.tutor_notes || ''} ${r.student_comments || ''} ${inst} ${dept}`.toLowerCase();
+                if (!hay.includes(q)) return false;
+              }
+              return true;
+            })
+            .sort((a, b) => (Number(a.request_number || 0) - Number(b.request_number || 0)));
 
           const alarmCount = requests.filter(hasAlarm).length;
 
-          const rowsHtml = filtered.map((r, idx) => {
+          const rowsHtml = filtered.map(r => {
             const s = r.students || {};
             const inst = r.institution_snapshot || s.institution || '-';
             const dept = r.department_snapshot || s.department || '';
@@ -1310,8 +1325,8 @@
 
             const pendingBadge = r.status === 'ΕΚΚΡΕΜΕΣ'
               ? (alarm
-                  ? `<div class="text-[10px] font-extrabold text-red-700 bg-red-100 px-1.5 py-0.5 rounded mt-0.5 inline-block">🔴 ${days} ημ. ALARM</div>`
-                  : `<div class="text-[10px] text-amber-700 mt-0.5">⏳ ${days} ημ.</div>`)
+                  ? `<div class="text-[9px] font-extrabold text-red-700 bg-red-100 px-1 py-0.5 rounded mt-0.5 inline-block">🔴 ${days}ημ ALARM</div>`
+                  : `<div class="text-[9px] text-amber-700 mt-0.5">⏳ ${days} ημ.</div>`)
               : '';
 
             const disc = Number(r.special_discount || 0);
@@ -1319,40 +1334,51 @@
               ? `${r.lesson_type} (${hrs}/${pkgHrs}ώ)`
               : `${r.desired_program || r.lesson_type || 'Ιδιαίτερο'}${hrs > 0 ? ` (${hrs}ώ)` : ''}`;
 
+            const commentsParts = [];
+            if (r.tutor_notes && r.tutor_notes.trim()) {
+              commentsParts.push(`<div class="text-slate-800 font-medium">${r.tutor_notes.trim()}</div>`);
+            }
+            if (r.student_comments && r.student_comments.trim()) {
+              commentsParts.push(`<div class="text-slate-500 text-[10px]">${r.student_comments.trim()}</div>`);
+            }
+            const commentsHtml = commentsParts.length
+              ? commentsParts.join('')
+              : '<span class="text-slate-300 italic text-[10px]">Χωρίς σχόλιο</span>';
+
             return `
-              <tr class="border-b border-slate-100 hover:bg-slate-50/80 ${alarm ? 'bg-red-50/40' : ''}">
-                <td class="px-2.5 py-2.5 font-extrabold text-slate-500 whitespace-nowrap">#${r.request_number || (filtered.length - idx)}</td>
-                <td class="px-2.5 py-2.5 whitespace-nowrap">
-                  <div class="font-semibold text-slate-800">${r.request_date || '-'}</div>
+              <tr class="border-b border-slate-100 hover:bg-slate-50/80 align-top ${alarm ? 'bg-red-50/40' : ''}">
+                <td class="px-1.5 py-2 font-extrabold text-slate-600 whitespace-nowrap">#${r.request_number || '—'}</td>
+                <td class="px-1.5 py-2 whitespace-nowrap">
+                  <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${statusCls}">${r.status}</span>
                   ${pendingBadge}
                 </td>
-                <td class="px-2.5 py-2.5 whitespace-nowrap">
-                  <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">${getRecordSemester(r)}</span>
+                <td class="px-1.5 py-2 text-[10px] leading-snug break-words max-w-[160px]">
+                  ${commentsHtml}
                 </td>
-                <td class="px-2.5 py-2.5 whitespace-nowrap">
+                <td class="px-1.5 py-2 whitespace-nowrap">
+                  <div class="font-semibold text-slate-800 text-[10px]">${r.request_date || '-'}</div>
+                  <span class="text-[9px] font-bold px-1 py-0.5 rounded bg-slate-100 text-slate-600 inline-block mt-0.5">${getRecordSemester(r)}</span>
+                </td>
+                <td class="px-1.5 py-2 leading-snug">
                   <div class="font-bold text-slate-900">${s.last_name || ''} ${s.first_name || ''}</div>
-                  ${s.phone ? `<a href="tel:${s.phone}" class="text-[10px] text-red-700 underline">📞 ${s.phone}</a>` : ''}
+                  ${s.phone ? `<a href="tel:${s.phone}" class="text-[10px] text-red-700 underline whitespace-nowrap">${s.phone}</a>` : ''}
                 </td>
-                <td class="px-2.5 py-2.5">
+                <td class="px-1.5 py-2 leading-snug max-w-[130px]">
                   <div class="font-bold text-slate-800">${inst}</div>
-                  <div class="text-[10px] text-slate-500 max-w-[140px] truncate" title="${dept}">${dept}</div>
+                  <div class="text-[10px] text-slate-500 break-words">${dept}</div>
                 </td>
-                <td class="px-2.5 py-2.5">
-                  <div class="font-semibold text-slate-900 max-w-[210px]" title="${r.course_title_snapshot || ''}">${r.course_title_snapshot || ''}</div>
-                  ${r.is_unistudents ? `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700">UNISTUDENTS</span>` : ''}
+                <td class="px-1.5 py-2 leading-snug max-w-[180px]">
+                  <div class="font-semibold text-slate-900 break-words">${r.course_title_snapshot || ''}</div>
                 </td>
-                <td class="px-2.5 py-2.5 whitespace-nowrap">${tutorDisplay}</td>
-                <td class="px-2.5 py-2.5 whitespace-nowrap text-slate-700 font-medium">${progInfo}</td>
-                <td class="px-2.5 py-2.5 whitespace-nowrap">${disc > 0 ? `<span class="font-bold text-rose-700">-${disc}€</span>` : '<span class="text-slate-300">—</span>'}</td>
-                <td class="px-2.5 py-2.5 whitespace-nowrap text-[10px] font-semibold text-slate-600">${r.referral_source || '—'}</td>
-                <td class="px-2.5 py-2.5 whitespace-nowrap">
-                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusCls}">${r.status}</span>
+                <td class="px-1.5 py-2 leading-snug whitespace-nowrap">${tutorDisplay}</td>
+                <td class="px-1.5 py-2 leading-snug text-slate-700 font-medium max-w-[120px] break-words">${progInfo}</td>
+                <td class="px-1.5 py-2 whitespace-nowrap text-[10px] font-semibold text-slate-600">${r.referral_source || '—'}</td>
+                <td class="px-1.5 py-2 whitespace-nowrap text-center">${disc > 0 ? `<span class="font-bold text-rose-700">-${disc}€</span>` : '<span class="text-slate-300">—</span>'}</td>
+                <td class="px-1.5 py-2 whitespace-nowrap text-center">
+                  ${r.is_unistudents ? `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">ΝΑΙ</span>` : '<span class="text-slate-300">—</span>'}
                 </td>
-                <td class="px-2.5 py-2.5 text-[11px] text-slate-600 max-w-[180px]">
-                  ${r.tutor_notes ? `<div class="line-clamp-2" title="${r.tutor_notes}">${r.tutor_notes}</div>` : '<span class="text-slate-300 italic">Χωρίς σχόλιο</span>'}
-                </td>
-                <td class="px-2.5 py-2.5 whitespace-nowrap">
-                  <button onclick="openEditRequestModal('${r.id}')" class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-[11px] font-bold text-slate-700 hover:bg-slate-100">✏️</button>
+                <td class="px-1.5 py-2 whitespace-nowrap text-right">
+                  <button onclick="openEditRequestModal('${r.id}')" class="px-2 py-1 rounded-lg border border-slate-300 bg-white text-[10px] font-bold text-slate-700 hover:bg-slate-100" title="Επεξεργασία">✏️</button>
                 </td>
               </tr>`;
           }).join('');
@@ -1364,11 +1390,11 @@
               </button>
               <div class="flex items-center gap-2 text-xs">
                 <span class="bg-white border border-slate-200 px-3 py-1.5 rounded-xl font-bold text-slate-700">Εμφανίζονται: ${filtered.length} / ${requests.length}</span>
-                ${alarmCount > 0 ? `<button onclick="reqFilterAlarmOnly = !reqFilterAlarmOnly; render();" class="px-3 py-1.5 rounded-xl font-bold border ${reqFilterAlarmOnly ? 'bg-red-700 text-white border-red-800' : 'bg-red-50 text-red-700 border-red-200'}">🔴 ${alarmCount} Alarm &gt;5 ημ.</button>` : ''}
+                ${alarmCount > 0 ? `<button onclick="reqFilterAlarmOnly = !reqFilterAlarmOnly; render();" class="px-3 py-1.5 rounded-xl font-bold border ${reqFilterAlarmOnly ? 'bg-red-700 text-white border-red-800' : 'bg-red-50 text-red-700 border-red-200'}">🔴 ${alarmCount} Alarm &gt;5 ημ. (χωρίς σχόλια)</button>` : ''}
               </div>
             </div>
 
-            <div class="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm space-y-2">
+            <div class="bg-white rounded-2xl p-2.5 border border-slate-200 shadow-sm">
               <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
                 <input type="text" value="${reqFilterSearch}" oninput="reqFilterSearch = this.value; render();" placeholder="🔍 Φοιτητής / Μάθημα / ΑΑ" class="col-span-2 sm:col-span-2 lg:col-span-1 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs bg-slate-50" />
                 <select onchange="reqFilterPeriod = this.value; render();" class="border border-slate-300 rounded-xl px-2 py-1.5 text-xs font-semibold bg-slate-50">
@@ -1403,22 +1429,22 @@
 
             <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               <div class="overflow-x-auto">
-                <table class="w-full text-left text-xs border-collapse">
-                  <thead class="bg-slate-800 text-white text-[11px] uppercase tracking-wider">
+                <table class="w-full text-left text-[11px] border-collapse">
+                  <thead class="bg-slate-800 text-white text-[10px] uppercase tracking-wide">
                     <tr>
-                      <th class="px-2.5 py-2.5">Α/Α</th>
-                      <th class="px-2.5 py-2.5">Ημ/νία</th>
-                      <th class="px-2.5 py-2.5">Εξάμηνο</th>
-                      <th class="px-2.5 py-2.5">Φοιτητής</th>
-                      <th class="px-2.5 py-2.5">Ίδρυμα / Σχολή</th>
-                      <th class="px-2.5 py-2.5">Μάθημα</th>
-                      <th class="px-2.5 py-2.5">Καθηγητής</th>
-                      <th class="px-2.5 py-2.5">Επιθυμία / Προγρ.</th>
-                      <th class="px-2.5 py-2.5">Έκπτωση</th>
-                      <th class="px-2.5 py-2.5">Πηγή</th>
-                      <th class="px-2.5 py-2.5">Κατάσταση</th>
-                      <th class="px-2.5 py-2.5">Σχόλιο Καθηγ.</th>
-                      <th class="px-2.5 py-2.5"></th>
+                      <th class="px-1.5 py-2 whitespace-nowrap">Α/Α</th>
+                      <th class="px-1.5 py-2 whitespace-nowrap">Κατάσταση</th>
+                      <th class="px-1.5 py-2">Σχόλια</th>
+                      <th class="px-1.5 py-2 whitespace-nowrap">Ημ/νία & Εξ.</th>
+                      <th class="px-1.5 py-2">Φοιτητής</th>
+                      <th class="px-1.5 py-2">Ίδρυμα / Σχολή</th>
+                      <th class="px-1.5 py-2">Μάθημα</th>
+                      <th class="px-1.5 py-2 whitespace-nowrap">Καθηγητής</th>
+                      <th class="px-1.5 py-2">Επιθυμία / Προγρ.</th>
+                      <th class="px-1.5 py-2 whitespace-nowrap">Πηγή</th>
+                      <th class="px-1.5 py-2 whitespace-nowrap text-center">Έκπτ.</th>
+                      <th class="px-1.5 py-2 whitespace-nowrap text-center">Uni</th>
+                      <th class="px-1.5 py-2"></th>
                     </tr>
                   </thead>
                   <tbody>
