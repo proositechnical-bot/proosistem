@@ -114,18 +114,27 @@
           <label class="text-xs font-semibold text-slate-600">Άτομα (1-7)</label>
           <input id="mStudentsCount" type="number" min="1" max="7" value="1" oninput="updateHoursPreview()" class="w-full mt-1 border rounded-lg p-2 text-sm" />
         </div>
-        <div class="pt-4">
+        <div id="mUniWrap" class="pt-4">
           <label class="flex items-center gap-1.5 text-xs font-medium cursor-pointer">
             <input id="mUnistudents" type="checkbox" class="w-4 h-4 rounded accent-red-800" />
             <span>Unistudents</span>
           </label>
         </div>
-        <div class="pt-4">
+        <div id="mPromoWrap" class="pt-4">
           <label class="flex items-center gap-1.5 text-xs font-medium cursor-pointer">
             <input id="mPromo" type="checkbox" onchange="updateHoursPreview()" class="w-4 h-4 rounded accent-red-800" />
             <span>Promo (0€)</span>
           </label>
         </div>
+      </div>
+
+      <div class="bg-amber-50/70 border border-amber-200 rounded-xl p-3 space-y-2">
+        <label class="text-xs font-bold text-amber-950 block">Επόμενο Μάθημα *</label>
+        <input id="mNextLessonAt" type="datetime-local" oninput="if(this.value) document.getElementById('mNextNotSet').checked = false;" class="w-full border border-amber-200 rounded-lg p-2 text-xs bg-white" />
+        <label class="flex items-center gap-2 text-xs font-semibold text-amber-900 cursor-pointer">
+          <input id="mNextNotSet" type="checkbox" onchange="if(this.checked) document.getElementById('mNextLessonAt').value = '';" class="w-4 h-4 rounded accent-red-800" />
+          <span>Δεν έχει οριστεί ακόμα</span>
+        </label>
       </div>
 
       <div id="hoursEarningPreview" class="text-xs bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-600 font-medium space-y-0.5"></div>
@@ -609,41 +618,33 @@
       <div class="grid grid-cols-2 gap-2.5">
         <div>
           <label class="text-xs font-semibold text-slate-600">Ημερομηνία Έναρξης *</label>
-          <input id="slStartDate" type="date" oninput="updateStartEmailPreview()" class="w-full mt-1 border rounded-lg p-2 text-sm" />
+          <input id="slStartDate" type="date" required class="w-full mt-1 border rounded-lg p-2 text-sm" />
         </div>
         <div>
-          <label class="text-xs font-semibold text-slate-600">Ώρα Μαθήματος (π.χ. 18:00-20:00)</label>
-          <input id="slStartTime" type="text" value="18:00–20:00" oninput="updateStartEmailPreview()" class="w-full mt-1 border rounded-lg p-2 text-sm" />
+          <label class="text-xs font-semibold text-slate-600">Ώρα Μαθήματος * (π.χ. 18:00-20:00)</label>
+          <input id="slStartTime" type="text" required value="18:00–20:00" class="w-full mt-1 border rounded-lg p-2 text-sm" />
         </div>
       </div>
 
       <div class="grid grid-cols-2 gap-2.5">
         <div>
-          <label class="text-xs font-semibold text-slate-600">Αναμενόμενες Ώρες Ολοκλήρωσης</label>
-          <input id="slExpectedHours" type="number" step="0.5" min="0" value="10" class="w-full mt-1 border rounded-lg p-2 text-sm font-bold" />
+          <label class="text-xs font-semibold text-slate-600">Αναμενόμενες Ώρες Ολοκλήρωσης *</label>
+          <input id="slExpectedHours" type="number" required step="0.5" min="0.5" value="10" class="w-full mt-1 border rounded-lg p-2 text-sm font-bold" />
         </div>
         <div>
-          <label class="text-xs font-semibold text-slate-600">Επόμενο Μάθημα (Ημ/νία & Ώρα)</label>
-          <input id="slNextLessonAt" type="datetime-local" class="w-full mt-1 border rounded-lg p-2 text-xs" />
+          <label class="text-xs font-semibold text-slate-600">Επόμενο Μάθημα (Ημ/νία & Ώρα) *</label>
+          <input id="slNextLessonAt" type="datetime-local" required class="w-full mt-1 border rounded-lg p-2 text-xs" />
         </div>
       </div>
 
       <div>
-        <label class="text-xs font-semibold text-slate-600">Microsoft Teams Link</label>
-        <input id="slTeamsLink" type="url" placeholder="https://teams.live.com/meet/..." oninput="updateStartEmailPreview()" class="w-full mt-1 border rounded-lg p-2 text-sm" />
+        <label class="text-xs font-semibold text-slate-600">Microsoft Teams Link *</label>
+        <input id="slTeamsLink" type="url" required placeholder="https://teams.live.com/meet/..." class="w-full mt-1 border rounded-lg p-2 text-sm" />
       </div>
 
-      <!-- Πρότυπο Email Έναρξης -->
-      <div class="bg-red-50/60 border border-red-200 rounded-xl p-3 space-y-2">
-        <div class="flex justify-between items-center">
-          <span class="text-xs font-bold text-red-900">✉️ Πρότυπο Email Έναρξης (επισύναψε την Τιμολογιακή Πολιτική)</span>
-          <div class="flex gap-1.5">
-            <button type="button" onclick="copyStartEmail()" class="px-2.5 py-1 rounded-lg bg-white border border-red-200 text-[11px] font-bold text-red-800 hover:bg-red-50">📋 Αντιγραφή</button>
-            <button type="button" onclick="openStartEmailClient()" class="px-2.5 py-1 rounded-lg bg-red-800 text-white text-[11px] font-bold">✉️ Άνοιγμα Mail</button>
-          </div>
-        </div>
-        <textarea id="slEmailPreview" rows="6" class="w-full border border-red-100 rounded-lg p-2 text-[11px] bg-white text-slate-700 leading-relaxed"></textarea>
-      </div>
+      <p class="text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded-xl p-2.5">
+        ℹ️ Με την επιβεβαίωση, θα σταλεί αυτόματα ειδοποίηση στη Διοίκηση για να αποσταλεί το email έναρξης στον φοιτητή (με κοινοποίηση σε εσένα). Τα στοιχεία μπορούν να τροποποιηθούν αργότερα από τις «ℹ️ Πληροφορίες Μαθήματος».
+      </p>
 
       <div class="flex gap-2 pt-1">
         <button onclick="closeModal('startLessonModal')" class="flex-1 py-2.5 rounded-xl border border-slate-300 font-medium text-slate-700">Ακύρωση</button>
@@ -656,10 +657,15 @@
   <div id="scheduleModal" class="hidden fixed inset-0 bg-black/50 z-30 flex items-end sm:items-center justify-center p-4">
     <div class="bg-white w-full max-w-md rounded-2xl p-5 space-y-3.5 shadow-xl">
       <div>
-        <h2 class="font-bold text-lg text-slate-900">Επόμενο Μάθημα & Στοιχεία</h2>
+        <h2 class="font-bold text-lg text-slate-900">Πληροφορίες Μαθήματος</h2>
         <p id="scSubtitle" class="text-xs text-slate-500"></p>
       </div>
       <input type="hidden" id="scReqIds" />
+
+      <div>
+        <label class="text-xs font-semibold text-slate-600">Ημερομηνία Έναρξης</label>
+        <input id="scStartDate" type="date" class="w-full mt-1 border rounded-lg p-2.5 text-sm" />
+      </div>
 
       <div>
         <label class="text-xs font-semibold text-slate-600">Επόμενο Μάθημα (Ημερομηνία & Ώρα)</label>
@@ -750,6 +756,8 @@
     let paymentFilterType = 'ALL';
     let paymentFilterCat = 'ALL';
     let activeDiaryStudentId = null;
+    let tutorActiveSemFilter = 'ALL';
+    let tutorActiveStatusFilter = 'OK';
     let tutorPendingSemFilter = 'ALL';
     let tutorPendingSearch = '';
     let tutorLogsPeriodFilter = 'ALL';
@@ -1530,10 +1538,30 @@
         const myPayments = payments.filter(p => p.tutor_id === currentTutorId && p.type === 'TUTOR_PAYOUT');
 
         if (currentTab === 'active') {
-          const active = myReqs.filter(r => r.status === 'OK');
+          const activeFilterBar = `
+            <div class="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <select onchange="tutorActiveStatusFilter = this.value; render();" class="border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-semibold bg-slate-50">
+                <option value="OK" ${tutorActiveStatusFilter === 'OK' ? 'selected' : ''}>Ενεργά Μαθήματα (OK)</option>
+                <option value="ΟΛΟΚΛΗΡΩΘΗΚΕ" ${tutorActiveStatusFilter === 'ΟΛΟΚΛΗΡΩΘΗΚΕ' ? 'selected' : ''}>Ολοκληρωμένα (Ιστορικό)</option>
+                <option value="ALL" ${tutorActiveStatusFilter === 'ALL' ? 'selected' : ''}>Όλα (Ενεργά + Ολοκληρωμένα)</option>
+              </select>
+              <select onchange="tutorActiveSemFilter = this.value; render();" class="border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-semibold bg-slate-50">
+                ${buildPeriodOptionsHtml(tutorActiveSemFilter, true)}
+              </select>
+            </div>`;
+
+          const active = myReqs.filter(r => {
+            if (tutorActiveStatusFilter === 'ALL') {
+              if (r.status !== 'OK' && r.status !== 'ΟΛΟΚΛΗΡΩΘΗΚΕ') return false;
+            } else if (r.status !== tutorActiveStatusFilter) {
+              return false;
+            }
+            if (!matchesPeriod(r, tutorActiveSemFilter)) return false;
+            return true;
+          });
           const pendingForAdd = myReqs.filter(r => r.status === 'ΕΚΚΡΕΜΕΣ');
           if (!active.length) {
-            container.innerHTML = '<p class="text-center text-slate-500 py-8 text-sm">Δεν υπάρχουν ενεργά μαθήματα.</p>';
+            container.innerHTML = activeFilterBar + '<p class="text-center text-slate-500 py-8 text-sm">Δεν υπάρχουν μαθήματα για αυτό το φίλτρο.</p>';
             return;
           }
 
@@ -1605,7 +1633,7 @@
                   </div>
                   <div class="flex items-center gap-2">
                     ${first.teams_link ? `<a href="${first.teams_link}" target="_blank" class="text-blue-700 font-bold underline">🎥 Teams</a>` : ''}
-                    <button onclick="openScheduleModal('${reqIdsCsv}')" class="text-red-800 font-bold underline">📅 Πρόγραμμα</button>
+                    <button onclick="openScheduleModal('${reqIdsCsv}')" class="text-red-800 font-bold underline">ℹ️ Πληροφορίες Μαθήματος</button>
                   </div>
                 </div>
 
@@ -1669,7 +1697,7 @@
                   </div>
                   <div class="flex items-center gap-2">
                     ${r.teams_link ? `<a href="${r.teams_link}" target="_blank" class="text-blue-700 font-bold underline">🎥 Teams</a>` : ''}
-                    <button onclick="openScheduleModal('${r.id}')" class="text-red-800 font-bold underline">📅 Πρόγραμμα</button>
+                    <button onclick="openScheduleModal('${r.id}')" class="text-red-800 font-bold underline">ℹ️ Πληροφορίες Μαθήματος</button>
                   </div>
                 </div>
 
@@ -1684,7 +1712,7 @@
               </div>`;
           }).join('');
 
-          container.innerHTML = groupCards + singleCards;
+          container.innerHTML = activeFilterBar + groupCards + singleCards;
         }
 
         else if (currentTab === 'pending') {
@@ -2649,7 +2677,15 @@
             NO_CONTACT: 'Χωρίς Επικοινωνία'
           };
 
-          const cardsHtml = items.length ? items.map(n => `
+          const cardsHtml = items.length ? items.map(n => {
+            const hasEmailMeta = n.isDb && n.details && n.details.includes('__EMAIL_JSON__:');
+            const cleanDetails = hasEmailMeta ? n.details.split('\n__EMAIL_JSON__:')[0] : (n.details || '');
+            const emailActions = hasEmailMeta ? `
+              <div class="flex flex-wrap items-center gap-2 pt-1.5">
+                <button onclick="openNotifStartEmail('${n.id}')" class="px-3 py-1.5 rounded-lg bg-red-800 text-white text-[11px] font-bold shadow-sm active:scale-95 transition">✉️ Αποστολή Email Έναρξης (CC Καθηγητή)</button>
+                <button onclick="copyNotifStartEmail('${n.id}')" class="px-2.5 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-[11px] font-bold text-slate-700 hover:bg-slate-200">📋 Αντιγραφή Κειμένου</button>
+              </div>` : '';
+            return `
             <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200 flex justify-between items-start gap-3">
               <div class="space-y-1 min-w-0">
                 <div class="flex items-center gap-2 flex-wrap">
@@ -2657,10 +2693,12 @@
                   <span class="text-[11px] text-slate-400">${n.dateStr}</span>
                 </div>
                 <p class="font-bold text-sm text-slate-900">${n.title}</p>
-                ${n.details ? `<p class="text-xs text-slate-600">${n.details}</p>` : ''}
+                ${cleanDetails ? `<p class="text-xs text-slate-600">${cleanDetails}</p>` : ''}
+                ${emailActions}
               </div>
               <button onclick="deleteNotification('${n.id}', ${n.isDb})" class="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-bold text-slate-500 hover:bg-rose-50 hover:text-rose-700 shrink-0" title="Διαγραφή ειδοποίησης">✕</button>
-            </div>`).join('') : '<div class="bg-white rounded-2xl p-8 text-center text-slate-400 text-sm border border-slate-200">Δεν υπάρχουν ενεργές ειδοποιήσεις των τελευταίων 10 ημερών.</div>';
+            </div>`;
+          }).join('') : '<div class="bg-white rounded-2xl p-8 text-center text-slate-400 text-sm border border-slate-200">Δεν υπάρχουν ενεργές ειδοποιήσεις των τελευταίων 10 ημερών.</div>';
 
           container.innerHTML = `
             <div class="flex flex-wrap justify-between items-center gap-2">
@@ -2941,12 +2979,18 @@
       document.getElementById('mStudentsCount').value = groupMembers.length > 1 ? groupMembers.length : (isGroup ? 2 : 1);
       document.getElementById('mContent').value = '';
 
-      // Unistudents κλειδωμένο από Admin για τους καθηγητές
+      // Unistudents & Promo ορατά μόνο για Admin (κρυφά για καθηγητές)
+      const showAdminFlags = isAdminUser && appMode === 'admin';
       const uniEl = document.getElementById('mUnistudents');
       uniEl.checked = Boolean(r.is_unistudents || r.lesson_type === 'UNISTUDENTS');
-      uniEl.disabled = !isAdminUser;
-
+      uniEl.disabled = !showAdminFlags;
+      document.getElementById('mUniWrap').classList.toggle('hidden', !showAdminFlags);
+      document.getElementById('mPromoWrap').classList.toggle('hidden', !showAdminFlags);
       document.getElementById('mPromo').checked = false;
+
+      // Υποχρεωτικό Επόμενο Μάθημα (καθαρίζεται ώστε να το δηλώσει ρητά)
+      document.getElementById('mNextLessonAt').value = '';
+      document.getElementById('mNextNotSet').checked = false;
 
       const pkgBanner = document.getElementById('modalPackageInfo');
       if (Number(r.package_hours || 0) > 0) {
@@ -3005,8 +3049,15 @@
       const hours = Number(document.getElementById('mHours').value);
       if (!hours || hours <= 0) { alert('Βάλε έγκυρες ώρες.'); return; }
 
+      const nextLessonAt = document.getElementById('mNextLessonAt').value;
+      const nextNotSet = document.getElementById('mNextNotSet').checked;
+      if (!nextLessonAt && !nextNotSet) {
+        alert('Υποχρεωτικό πεδίο: Ορίστε ημερομηνία & ώρα για το Επόμενο Μάθημα ή επιλέξτε «Δεν έχει οριστεί ακόμα».');
+        return;
+      }
+
       const numStudents = Number(document.getElementById('mStudentsCount').value || 1);
-      const isPromo = document.getElementById('mPromo').checked;
+      const isPromo = (isAdminUser && appMode === 'admin') ? document.getElementById('mPromo').checked : false;
       const lessonDate = document.getElementById('mDate').value;
       const contentTxt = document.getElementById('mContent').value.trim();
 
@@ -3056,6 +3107,12 @@
 
       const { error } = await db.from('lesson_logs').insert(payloads);
       if (error) { alert('Σφάλμα: ' + error.message); return; }
+
+      // Ενημέρωση Επόμενου Μαθήματος στα αντίστοιχα requests
+      const targetIds = targets.map(t => t.id);
+      await db.from('requests').update({
+        next_lesson_at: nextNotSet ? null : nextLessonAt
+      }).in('id', targetIds);
       const actorName = tutors.find(t => t.id === currentTutorId)?.short_name || 'Καθηγητής';
       const targetDesc = payloads.length > 1
         ? `Τμήμα ${primaryReq.group_name || primaryReq.course_title_snapshot} (${payloads.length} φοιτητές)`
@@ -3095,8 +3152,9 @@
       document.getElementById('slTeamsLink').value = r.teams_link || '';
       document.getElementById('slGroupName').value = `${r.course_title_snapshot || 'ΤΜΗΜΑ'} (ΤΜΗΜΑ)`;
 
-      // Πακέτα για νέο τμήμα
-      document.getElementById('slGroupPackage').innerHTML = packages.map(p =>
+      // Πακέτα για νέο τμήμα (χωρίς το ΙΔΙΑΙΤΕΡΟ)
+      const groupPackages = packages.filter(p => !String(p.name || '').toUpperCase().includes('ΙΔΙΑΙΤΕΡΟ'));
+      document.getElementById('slGroupPackage').innerHTML = (groupPackages.length ? groupPackages : packages).map(p =>
         `<option value="${p.name}" data-hours="${p.package_hours}" data-price="${p.total_price}">${p.name} (${p.total_price}€)</option>`
       ).join('');
 
@@ -3104,7 +3162,7 @@
       const myPending = requests.filter(x => x.tutor_id === currentTutorId && x.status === 'ΕΚΚΡΕΜΕΣ');
       document.getElementById('slGroupStudentsList').innerHTML = myPending.map(p => `
         <label class="flex items-center gap-2 text-xs p-1.5 rounded hover:bg-slate-50 cursor-pointer">
-          <input type="checkbox" class="sl-group-chk w-4 h-4 accent-red-800" value="${p.id}" ${p.id === r.id ? 'checked' : ''} onchange="updateStartEmailPreview()" />
+          <input type="checkbox" class="sl-group-chk w-4 h-4 accent-red-800" value="${p.id}" ${p.id === r.id ? 'checked' : ''} />
           <span><strong>${p.students?.last_name} ${p.students?.first_name}</strong> — ${p.course_title_snapshot}</span>
         </label>`).join('');
 
@@ -3139,7 +3197,6 @@
 
       document.getElementById('slNewGroupWrap').classList.toggle('hidden', mode !== 'new_group');
       document.getElementById('slExistingGroupWrap').classList.toggle('hidden', mode !== 'existing_group');
-      updateStartEmailPreview();
     }
 
     function formatGreekDate(isoDate) {
@@ -3150,57 +3207,62 @@
       return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]}`;
     }
 
-    function updateStartEmailPreview() {
-      const reqId = document.getElementById('slPrimaryReqId').value;
-      const r = requests.find(x => x.id === reqId);
-      if (!r) return;
-      const firstName = r.students?.first_name || r.students?.last_name || '';
-      const course = r.course_title_snapshot || '';
-      const dtText = formatGreekDate(document.getElementById('slStartDate').value);
-      const timeText = document.getElementById('slStartTime').value.trim();
-      const link = document.getElementById('slTeamsLink').value.trim() || '[Εισαγωγή Teams Link]';
-      const typeLabel = startLessonMode === 'single' ? 'Ιδιαίτερο' : 'Τμήμα';
+    function buildStartEmailPayload(targetReqs, mode, startDate, startTime, teamsLink, tutorEmail) {
+      const first = targetReqs[0] || {};
+      const firstNames = targetReqs.map(r => r.students?.first_name || r.students?.last_name || '').filter(Boolean);
+      const greetingName = firstNames.length > 1 ? firstNames.join(', ') : (firstNames[0] || 'Καλησπέρα');
+      const course = first.course_title_snapshot || 'Μάθημα';
+      const dtText = formatGreekDate(startDate);
+      const typeLabel = mode === 'single' ? 'Ιδιαίτερο' : 'Τμήμα';
+      const toEmails = Array.from(new Set(targetReqs.map(r => r.students?.email).filter(Boolean))).join(',');
 
-      const body = `${firstName} έβαλες ακόμα ένα λιθαράκι για το πτυχίο σου! 🎉\n\n` +
-        `Ξεκινάμε ${typeLabel} στο μάθημα ${course} την ${dtText}${timeText ? ' | ' + timeText : ''}.\n` +
-        `Το μάθημα θα γίνει εξ αποστάσεως μέσω Microsoft Teams στο link:\n${link}\n\n` +
+      const body = `${greetingName} έβαλες ακόμα ένα λιθαράκι για το πτυχίο σου! 🎉\n\n` +
+        `Ξεκινάμε ${typeLabel} στο μάθημα ${course} την ${dtText}${startTime ? ' | ' + startTime : ''}.\n` +
+        `Το μάθημα θα γίνει εξ αποστάσεως μέσω Microsoft Teams στο link:\n${teamsLink}\n\n` +
         `Τιμές και όροι υπηρεσιών μας στο συνημμένο.\n` +
         `Στη διάθεση σου για οποιαδήποτε διευκρίνιση.\n\n` +
         `Καλό Μάθημα!!! 🤓\n\n` +
         `--\nΜε εκτίμηση,\nΗ Ομάδα της ΠΡΟΩΣΗ STEM\nΠαπαστράτου 67, Πειραιάς 185 45\n2104446072, 2130461847, 6972411226\ninfo@proosistem.gr | www.proosistem.gr`;
 
-      document.getElementById('slEmailPreview').value = body;
+      return {
+        to: toEmails,
+        cc: tutorEmail || '',
+        subject: `${course} - Έναρξη Μαθήματος`,
+        body
+      };
     }
 
-    function copyStartEmail() {
-      const txt = document.getElementById('slEmailPreview').value;
-      navigator.clipboard.writeText(txt).then(() => showToast('Το κείμενο του email αντιγράφηκε!'));
+    function openNotifStartEmail(notifId) {
+      const n = dbNotifications.find(x => x.id === notifId);
+      if (!n || !n.details || !n.details.includes('__EMAIL_JSON__:')) return;
+      try {
+        const meta = JSON.parse(n.details.split('__EMAIL_JSON__:')[1]);
+        const ccPart = meta.cc ? `&cc=${encodeURIComponent(meta.cc)}` : '';
+        window.open(`mailto:${meta.to || ''}?subject=${encodeURIComponent(meta.subject || '')}${ccPart}&body=${encodeURIComponent(meta.body || '')}`, '_blank');
+      } catch (e) { alert('Σφάλμα ανάγνωσης στοιχείων email.'); }
     }
 
-    function openStartEmailClient() {
-      const reqId = document.getElementById('slPrimaryReqId').value;
-      const r = requests.find(x => x.id === reqId);
-      if (!r) return;
-      const emails = [];
-      if (startLessonMode === 'new_group') {
-        document.querySelectorAll('.sl-group-chk:checked').forEach(chk => {
-          const m = requests.find(x => x.id === chk.value);
-          if (m?.students?.email) emails.push(m.students.email);
-        });
-      } else if (r.students?.email) {
-        emails.push(r.students.email);
-      }
-      const subject = encodeURIComponent(`${r.course_title_snapshot || 'Μάθημα'} - Έναρξη Μαθήματος`);
-      const body = encodeURIComponent(document.getElementById('slEmailPreview').value);
-      window.open(`mailto:${emails.join(',')}?subject=${subject}&body=${body}`, '_blank');
+    function copyNotifStartEmail(notifId) {
+      const n = dbNotifications.find(x => x.id === notifId);
+      if (!n || !n.details || !n.details.includes('__EMAIL_JSON__:')) return;
+      try {
+        const meta = JSON.parse(n.details.split('__EMAIL_JSON__:')[1]);
+        navigator.clipboard.writeText(meta.body || '').then(() => showToast('Το κείμενο του email αντιγράφηκε!'));
+      } catch (e) { alert('Σφάλμα αντιγραφής.'); }
     }
 
     async function confirmStartLesson() {
       const primaryId = document.getElementById('slPrimaryReqId').value;
-      const startDate = document.getElementById('slStartDate').value || new Date().toISOString().split('T')[0];
+      const startDate = document.getElementById('slStartDate').value;
+      const startTime = document.getElementById('slStartTime').value.trim();
       const expectedHours = Number(document.getElementById('slExpectedHours').value || 0);
-      const nextLessonAt = document.getElementById('slNextLessonAt').value || null;
-      const teamsLink = document.getElementById('slTeamsLink').value.trim() || null;
+      const nextLessonAt = document.getElementById('slNextLessonAt').value;
+      const teamsLink = document.getElementById('slTeamsLink').value.trim();
+
+      if (!startDate || !startTime || !expectedHours || expectedHours <= 0 || !nextLessonAt || !teamsLink) {
+        alert('Συμπλήρωσε όλα τα υποχρεωτικά πεδία (*) — Ημερομηνία, Ώρα, Αναμενόμενες Ώρες, Επόμενο Μάθημα και Teams Link.');
+        return;
+      }
 
       const btn = document.getElementById('slSaveBtn');
       btn.textContent = 'Αποθήκευση...';
@@ -3283,8 +3345,14 @@
       if (err) { alert('Σφάλμα: ' + err.message); return; }
 
       const rStart = requests.find(x => x.id === primaryId);
-      const actorS = tutors.find(t => t.id === currentTutorId)?.short_name || 'Καθηγητής';
-      await logNotification('START_LESSON', `${actorS} ξεκίνησε μάθημα (${startLessonMode === 'single' ? 'Ιδιαίτερο' : 'Τμήμα'})`, `${rStart?.students?.last_name || ''} ${rStart?.students?.first_name || ''} — ${rStart?.course_title_snapshot || ''} (Έναρξη: ${startDate})`);
+      const tutorObj = tutors.find(t => t.id === currentTutorId);
+      const actorS = tutorObj?.short_name || 'Καθηγητής';
+      const targetReqs = startLessonMode === 'new_group'
+        ? Array.from(document.querySelectorAll('.sl-group-chk:checked')).map(c => requests.find(x => x.id === c.value)).filter(Boolean)
+        : [rStart].filter(Boolean);
+      const emailPayload = buildStartEmailPayload(targetReqs, startLessonMode, startDate, startTime, teamsLink, tutorObj?.email ? tutorObj.email.trim() : '');
+      const visibleDetails = `${targetReqs.map(x => `${x.students?.last_name || ''} ${x.students?.first_name || ''}`.trim()).join(', ')} — ${rStart?.course_title_snapshot || ''} (Έναρξη: ${startDate}, ${startTime})`;
+      await logNotification('START_LESSON', `${actorS} ξεκίνησε μάθημα (${startLessonMode === 'single' ? 'Ιδιαίτερο' : 'Τμήμα'})`, `${visibleDetails}\n__EMAIL_JSON__:${JSON.stringify(emailPayload)}`);
       closeModal('startLessonModal');
       showToast('Η έναρξη καταχωρήθηκε!');
       await loadAllData();
@@ -3322,6 +3390,7 @@
       document.getElementById('scSubtitle').textContent = ids.length > 1
         ? `Τμήμα: ${ref.group_name || ref.course_title_snapshot}`
         : `${ref.students?.last_name} ${ref.students?.first_name} — ${ref.course_title_snapshot}`;
+      document.getElementById('scStartDate').value = ref.start_date || '';
       document.getElementById('scNextLessonAt').value = ref.next_lesson_at || '';
       document.getElementById('scExpectedHours').value = ref.expected_hours || '';
       document.getElementById('scTeamsLink').value = ref.teams_link || '';
@@ -3331,6 +3400,7 @@
     async function saveScheduleDetails() {
       const ids = document.getElementById('scReqIds').value.split(',').filter(Boolean);
       const { error } = await db.from('requests').update({
+        start_date: document.getElementById('scStartDate').value || null,
         next_lesson_at: document.getElementById('scNextLessonAt').value || null,
         expected_hours: Number(document.getElementById('scExpectedHours').value || 0),
         teams_link: document.getElementById('scTeamsLink').value.trim() || null
