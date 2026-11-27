@@ -266,6 +266,7 @@
       </div>
 
       <div id="nrBillingSummary" class="text-xs bg-red-50 text-red-900 border border-red-100 rounded-lg p-2.5 font-medium"></div>
+      <div id="nrPkgChangeHint" class="hidden text-[11px] bg-amber-50 text-amber-900 border border-amber-200 rounded-lg p-2"></div>
 
       <div class="grid grid-cols-2 gap-2 items-center bg-slate-50 px-3 py-2 rounded-lg border border-slate-200">
         <label class="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
@@ -1259,6 +1260,20 @@
       const fallback = { 1: 15, 2: 18, 3: 22, 4: 27, 5: 33, 6: 40, 7: 48 };
       const groupTotal = tier ? Number(tier.total_hourly_rate) : fallback[n];
       return groupTotal / n;
+    }
+
+    function isGroupRequest(reqObj) {
+      if (!reqObj) return false;
+      if (reqObj.group_id) {
+        const members = requests.filter(x => x.group_id === reqObj.group_id && x.status !== 'ΑΚΥΡΩΘΗΚΕ');
+        if (members.length >= 2) return true;
+      }
+      const prog = String(reqObj.desired_program || '').toUpperCase();
+      return prog.includes('ΤΜΗΜΑ');
+    }
+
+    function isPackageOption(pkgHours) {
+      return Number(pkgHours || 0) > 1;
     }
 
     function getUsedHoursForRequest(reqId) {
@@ -3317,13 +3332,23 @@
 
       let err = null;
       if (startLessonMode === 'single') {
-        ({ error: err } = await db.from('requests').update({
+        const rSingle = requests.find(x => x.id === primaryId);
+        const singleUpdate = {
           status: 'OK',
           start_date: startDate,
           expected_hours: expectedHours,
           next_lesson_at: nextLessonAt,
           teams_link: teamsLink
-        }).eq('id', primaryId));
+        };
+        if (rSingle && isPackageOption(rSingle.package_hours)) {
+          const hourlyFallback = packages.find(p => !isPackageOption(p.package_hours));
+          const fallbackRate = Number(rSingle.student_hourly_rate || hourlyFallback?.total_price || 30);
+          singleUpdate.lesson_type = hourlyFallback?.name || 'ΙΔΙΑΙΤΕΡΟ ΜΑΘΗΜΑ';
+          singleUpdate.package_hours = 0;
+          singleUpdate.upfront_charge = 0;
+          singleUpdate.student_hourly_rate = fallbackRate;
+        }
+        ({ error: err } = await db.from('requests').update(singleUpdate).eq('id', primaryId));
       } else if (startLessonMode === 'new_group') {
         const checkedIds = Array.from(document.querySelectorAll('.sl-group-chk:checked')).map(x => x.value);
         if (checkedIds.length < 2) {
@@ -3628,7 +3653,8 @@
         `<option value="__ALT__">➕ Ανάθεση σε Εναλλακτικό Καθηγητή...</option>`;
 
       document.getElementById('nrSemester').innerHTML = sems.map(s => `<option value="${s}" ${s === curSem ? 'selected' : ''}>${s}</option>`).join('');
-      document.getElementById('nrPackageSelect').innerHTML = packages.map(p =>
+      const hourlyPkgsNew = packages.filter(p => !isPackageOption(p.package_hours));
+      document.getElementById('nrPackageSelect').innerHTML = hourlyPkgsNew.map(p =>
         `<option value="${p.name}" data-hours="${p.package_hours}" data-price="${p.total_price}">${p.name} (${p.total_price}€)</option>`
       ).join('');
 
@@ -3678,7 +3704,9 @@
       onNrTutorChange();
 
       document.getElementById('nrSemester').innerHTML = sems.map(s => `<option value="${s}" ${s === reqSem ? 'selected' : ''}>${s}</option>`).join('');
-      document.getElementById('nrPackageSelect').innerHTML = packages.map(p =>
+      const allowPkgEdit = isGroupRequest(r) || Number(r.package_hours || 0) > 1;
+      const availPkgsEdit = allowPkgEdit ? packages : packages.filter(p => !isPackageOption(p.package_hours));
+      document.getElementById('nrPackageSelect').innerHTML = availPkgsEdit.map(p =>
         `<option value="${p.name}" data-hours="${p.package_hours}" data-price="${p.total_price}" ${p.name === r.lesson_type ? 'selected' : ''}>${p.name} (${p.total_price}€)</option>`
       ).join('');
 
@@ -3696,6 +3724,15 @@
       document.getElementById('nrStatusWrap').classList.remove('hidden');
       document.getElementById('nrTutorNotesWrap').classList.remove('hidden');
       document.getElementById('nrTutorSuggestion').classList.add('hidden');
+
+      const hintEl = document.getElementById('nrPkgChangeHint');
+      const usedHrs = getUsedHoursForRequest(r.id);
+      if (Number(r.package_hours || 0) > 0 && usedHrs > 0) {
+        hintEl.innerHTML = `⚠️ Έχουν ήδη καταχωρηθεί <strong>${usedHrs} ώρ.</strong> με πακέτο. Αν αλλάξεις το πρόγραμμα σε ωριαίο (π.χ. ΙΔΙΑΙΤΕΡΟ ΜΑΘΗΜΑ), έλεγξε και τις σχετικές εγγραφές στις <em>Κινήσεις</em> / <em>Ημερολόγιο</em> αν χρειάζεται.`;
+        hintEl.classList.remove('hidden');
+      } else {
+        hintEl.classList.add('hidden');
+      }
 
       updateNrBillingSummary();
       document.getElementById('newRequestModal').classList.remove('hidden');
@@ -3776,6 +3813,12 @@
       const opt = sel.options[sel.selectedIndex];
       const pkgName = opt.value;
       const pkgHours = Number(opt.getAttribute('data-hours') || 1);
+      const existingReqObj = editId ? requests.find(x => x.id === editId) : null;
+      const isGrp = existingReqObj ? isGroupRequest(existingReqObj) : String(document.getElementById('nrDesiredProgram').value || '').toUpperCase().includes('ΤΜΗΜΑ');
+      if (isPackageOption(pkgHours) && !isGrp) {
+        alert('Ασφαλιστική διάταξη: Τα πακέτα ωρών αφορούν τμήματα (2+ άτομα) και δεν επιτρέπονται σε μεμονωμένο φοιτητή.');
+        return;
+      }
       const enteredAmount = Number(document.getElementById('nrAmountInput').value || 0);
       const specialDiscount = Math.min(100, Math.max(0, Number(document.getElementById('nrDiscountInput').value || 0)));
       const isUni = document.getElementById('nrIsUnistudents').checked;
@@ -3807,6 +3850,24 @@
         payload.status = document.getElementById('nrStatusSelect').value;
         payload.tutor_notes = document.getElementById('nrTutorNotes').value.trim() || null;
         ({ error } = await db.from('requests').update(payload).eq('id', editId));
+
+        if (!error && existingReqObj && isPackageOption(existingReqObj.package_hours) && !isPackage) {
+          const reqLogs = logs.filter(l => l.request_id === editId);
+          for (const l of reqLogs) {
+            if (!l.is_promo && Number(l.total_charge || 0) === 0) {
+              const unitRate = Number(enteredAmount || 30);
+              const newCharge = +(Number(l.hours || 0) * unitRate * (1 - specialDiscount / 100)).toFixed(2);
+              const newUni = l.is_unistudents ? +(newCharge * 0.15).toFixed(2) : 0;
+              const newCenter = +(newCharge - Number(l.tutor_earning || 0) - newUni).toFixed(2);
+              await db.from('lesson_logs').update({
+                category: pkgName,
+                total_charge: newCharge,
+                unistudents_earning: newUni,
+                center_earning: newCenter
+              }).eq('id', l.id);
+            }
+          }
+        }
       } else {
         payload.status = 'ΕΚΚΡΕΜΕΣ';
         ({ error } = await db.from('requests').insert(payload));
