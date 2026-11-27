@@ -611,8 +611,8 @@
       <!-- Υφιστάμενο Τμήμα -->
       <div id="slExistingGroupWrap" class="hidden bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
         <label class="text-xs font-semibold text-slate-700">Επιλογή Υφιστάμενου Ενεργού Τμήματος *</label>
-        <select id="slExistingGroupSelect" class="w-full border rounded-lg p-2.5 text-sm bg-white"></select>
-        <p class="text-[11px] text-slate-500">Ο φοιτητής θα προστεθεί αυτόματα στο επιλεγμένο τμήμα με το ίδιο Teams Link και πρόγραμμα.</p>
+        <select id="slExistingGroupSelect" onchange="onExistingGroupSelected()" class="w-full border rounded-lg p-2.5 text-sm bg-white"></select>
+        <div id="slExistingGroupInfo" class="text-[11px] text-slate-600 bg-white border border-slate-200 rounded-lg p-2"></div>
       </div>
 
       <div class="grid grid-cols-2 gap-2.5">
@@ -627,17 +627,17 @@
       </div>
 
       <div class="grid grid-cols-2 gap-2.5">
-        <div>
+        <div id="slExpectedHoursWrap">
           <label class="text-xs font-semibold text-slate-600">Αναμενόμενες Ώρες Ολοκλήρωσης *</label>
           <input id="slExpectedHours" type="number" required step="0.5" min="0.5" value="10" class="w-full mt-1 border rounded-lg p-2 text-sm font-bold" />
         </div>
-        <div>
+        <div id="slNextLessonWrap">
           <label class="text-xs font-semibold text-slate-600">Επόμενο Μάθημα (Ημ/νία & Ώρα) *</label>
           <input id="slNextLessonAt" type="datetime-local" required class="w-full mt-1 border rounded-lg p-2 text-xs" />
         </div>
       </div>
 
-      <div>
+      <div id="slTeamsLinkWrap">
         <label class="text-xs font-semibold text-slate-600">Microsoft Teams Link *</label>
         <input id="slTeamsLink" type="url" required placeholder="https://teams.live.com/meet/..." class="w-full mt-1 border rounded-lg p-2 text-sm" />
       </div>
@@ -1596,13 +1596,16 @@
               const s = m.students || {};
               const mHrs = getUsedHoursForRequest(m.id);
               return `
-                <div class="flex justify-between items-center text-xs bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-100">
-                  <div>
+                <div class="flex justify-between items-center text-xs bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-100 gap-2">
+                  <div class="min-w-0">
                     <span class="font-bold text-slate-900">${s.last_name || ''} ${s.first_name || ''}</span>
                     ${m.is_unistudents ? `<span class="ml-1 text-[9px] font-bold px-1 py-0.5 rounded bg-indigo-50 text-indigo-700">UNI</span>` : ''}
                     ${s.phone ? `<a href="tel:${s.phone}" class="ml-1.5 text-[10px] text-red-700 underline">📞 ${s.phone}</a>` : ''}
                   </div>
-                  <span class="font-bold text-red-800">${pkgHrs > 0 ? `${mHrs}/${pkgHrs}ώ` : `${mHrs}ώ`}</span>
+                  <div class="flex items-center gap-2 shrink-0">
+                    <span class="font-bold text-red-800">${pkgHrs > 0 ? `${mHrs}/${pkgHrs}ώ` : `${mHrs}ώ`}</span>
+                    <button onclick="removeStudentFromGroup('${m.id}', '${gid}', '${(s.last_name || '') + ' ' + (s.first_name || '')}')" title="Αφαίρεση φοιτητή από το τμήμα" class="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-[10px] font-bold text-slate-400 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200">✕</button>
+                  </div>
                 </div>`;
             }).join('');
 
@@ -3201,8 +3204,31 @@
       document.getElementById('slModeNewGroup').className = mode === 'new_group' ? 'py-2 rounded-lg font-bold bg-red-800 text-white' : 'py-2 rounded-lg font-bold text-slate-600';
       document.getElementById('slModeExistingGroup').className = mode === 'existing_group' ? 'py-2 rounded-lg font-bold bg-red-800 text-white' : 'py-2 rounded-lg font-bold text-slate-600';
 
+      const isExisting = mode === 'existing_group';
       document.getElementById('slNewGroupWrap').classList.toggle('hidden', mode !== 'new_group');
-      document.getElementById('slExistingGroupWrap').classList.toggle('hidden', mode !== 'existing_group');
+      document.getElementById('slExistingGroupWrap').classList.toggle('hidden', !isExisting);
+      document.getElementById('slExpectedHoursWrap').classList.toggle('hidden', isExisting);
+      document.getElementById('slTeamsLinkWrap').classList.toggle('hidden', isExisting);
+      document.getElementById('slNextLessonWrap').classList.toggle('col-span-2', isExisting);
+
+      if (isExisting) onExistingGroupSelected();
+    }
+
+    function onExistingGroupSelected() {
+      const selKey = document.getElementById('slExistingGroupSelect')?.value;
+      const infoEl = document.getElementById('slExistingGroupInfo');
+      if (!infoEl) return;
+      const ref = requests.find(x => x.group_id === selKey);
+      if (!ref) {
+        infoEl.innerHTML = 'Επίλεξε ένα υφιστάμενο τμήμα για να κληρονομηθούν αυτόματα οι ώρες και το Teams Link.';
+        return;
+      }
+      const expHrs = Number(ref.expected_hours || 0);
+      const linkTxt = ref.teams_link ? `<span class="text-emerald-700 font-bold">✓ Ορισμένο</span>` : `<span class="text-amber-700 font-semibold">Μη ορισμένο</span>`;
+      infoEl.innerHTML = `Αυτόματη κληρονόμηση από το τμήμα: <strong>Αναμενόμενες ώρες:</strong> ${expHrs > 0 ? expHrs + ' ώρ.' : '—'} • <strong>Teams Link:</strong> ${linkTxt}`;
+      if (ref.next_lesson_at) {
+        document.getElementById('slNextLessonAt').value = ref.next_lesson_at;
+      }
     }
 
     function formatGreekDate(isoDate) {
@@ -3261,13 +3287,28 @@
       const primaryId = document.getElementById('slPrimaryReqId').value;
       const startDate = document.getElementById('slStartDate').value;
       const startTime = document.getElementById('slStartTime').value.trim();
-      const expectedHours = Number(document.getElementById('slExpectedHours').value || 0);
+      let expectedHours = Number(document.getElementById('slExpectedHours').value || 0);
       const nextLessonAt = document.getElementById('slNextLessonAt').value;
-      const teamsLink = document.getElementById('slTeamsLink').value.trim();
+      let teamsLink = document.getElementById('slTeamsLink').value.trim();
 
-      if (!startDate || !startTime || !expectedHours || expectedHours <= 0 || !nextLessonAt || !teamsLink) {
-        alert('Συμπλήρωσε όλα τα υποχρεωτικά πεδία (*) — Ημερομηνία, Ώρα, Αναμενόμενες Ώρες, Επόμενο Μάθημα και Teams Link.');
-        return;
+      if (startLessonMode === 'existing_group') {
+        const selKey = document.getElementById('slExistingGroupSelect').value;
+        const refGrp = requests.find(x => x.group_id === selKey);
+        if (!selKey || !refGrp) {
+          alert('Επίλεξε ένα υφιστάμενο ενεργό τμήμα.');
+          return;
+        }
+        if (!startDate || !startTime || !nextLessonAt) {
+          alert('Συμπλήρωσε Ημερομηνία Έναρξης, Ώρα Μαθήματος και Επόμενο Μάθημα.');
+          return;
+        }
+        expectedHours = Number(refGrp.expected_hours || 0);
+        teamsLink = refGrp.teams_link || '';
+      } else {
+        if (!startDate || !startTime || !expectedHours || expectedHours <= 0 || !nextLessonAt || !teamsLink) {
+          alert('Συμπλήρωσε όλα τα υποχρεωτικά πεδία (*) — Ημερομηνία, Ώρα, Αναμενόμενες Ώρες, Επόμενο Μάθημα και Teams Link.');
+          return;
+        }
       }
 
       const btn = document.getElementById('slSaveBtn');
@@ -3340,9 +3381,9 @@
           start_date: startDate,
           group_id: targetGroupId,
           group_name: refReq?.group_name || `${refReq?.course_title_snapshot || 'ΤΜΗΜΑ'} (ΤΜΗΜΑ)`,
-          teams_link: teamsLink || refReq?.teams_link || null,
+          teams_link: refReq?.teams_link || null,
           next_lesson_at: nextLessonAt || refReq?.next_lesson_at || null,
-          expected_hours: expectedHours || refReq?.expected_hours || 0
+          expected_hours: Number(refReq?.expected_hours || 0)
         }).eq('id', primaryId));
       }
 
@@ -3384,6 +3425,25 @@
 
       if (error) { alert('Σφάλμα: ' + error.message); return; }
       showToast('Ο φοιτητής προστέθηκε στο τμήμα!');
+      await loadAllData();
+      render();
+    }
+
+    async function removeStudentFromGroup(reqId, groupId, studentName) {
+      if (!confirm(`Να αφαιρεθεί ο/η ${studentName.trim()} από το τμήμα; (Θα παραμείνει ως ξεχωριστό ενεργό μάθημα.)`)) return;
+      const { error } = await db.from('requests').update({
+        group_id: null,
+        group_name: null
+      }).eq('id', reqId);
+      if (error) { alert('Σφάλμα: ' + error.message); return; }
+
+      // Αν έμεινε μόνο 1 φοιτητής στο τμήμα, το μετατρέπουμε αυτόματα σε μεμονωμένο ενεργό μάθημα
+      const remaining = requests.filter(r => r.group_id === groupId && r.id !== reqId && r.status === 'OK');
+      if (remaining.length === 1) {
+        await db.from('requests').update({ group_id: null, group_name: null }).eq('id', remaining[0].id);
+      }
+
+      showToast('Ο φοιτητής αφαιρέθηκε από το τμήμα.');
       await loadAllData();
       render();
     }
