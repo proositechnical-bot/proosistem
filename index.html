@@ -767,11 +767,12 @@
             { id: 'admin_payments', label: 'Κινήσεις' },
             { id: 'admin_students', label: 'Φοιτητές' },
             { id: 'admin_tutors', label: 'Καθηγητές' },
-            { id: 'admin_prices', label: 'Τιμές & Έξοδα' }
+            { id: 'admin_prices', label: 'Τιμές' },
+            { id: 'admin_guide', label: 'Οδηγός' }
           ];
 
-      const gridClass = tabs.length === 3 ? 'grid-cols-3' : 'grid-cols-6';
-      nav.innerHTML = `<div class="max-w-5xl mx-auto grid ${gridClass} text-[11px] font-medium">` +
+      const gridClass = tabs.length === 3 ? 'grid-cols-3' : 'grid-cols-7';
+      nav.innerHTML = `<div class="max-w-5xl mx-auto grid ${gridClass} text-[10px] sm:text-[11px] font-medium">` +
         tabs.map(t => `
           <button onclick="setTab('${t.id}')" class="py-3 px-0.5 flex flex-col items-center gap-1 ${currentTab === t.id ? 'text-red-800 border-t-2 border-red-800 font-bold' : 'text-slate-500'}">
             <span>${t.label}</span>
@@ -825,7 +826,7 @@
       return +(earned - paid).toFixed(2);
     }
 
-    function renderSemesterResultsBlock() {
+    function renderSemesterResultsBlock(totalStudentDebtAll = 0) {
       const semPayments = payments.filter(p => matchesPeriod(p, selectedPeriod));
       const semLogs = logs.filter(l => matchesPeriod(l, selectedPeriod));
       const semReqs = requests.filter(r => matchesPeriod(r, selectedPeriod));
@@ -850,38 +851,54 @@
         .filter(p => p.type === 'TUTOR_PAYOUT')
         .reduce((s, p) => s + Number(p.amount || 0), 0).toFixed(2);
 
-      const synolikaExoda = +(leitourgikaExoda + plirwmesKathigiton).toFixed(2);
       const tutorEarnedSem = +semLogs.reduce((s, l) => s + Number(l.tutor_earning || 0), 0).toFixed(2);
+
+      // Συνολικά Έξοδα & Αμοιβές (συμπεριλαμβανομένων των δεδουλευμένων αμοιβών καθηγητών)
+      const synolikaExodaFull = +(leitourgikaExoda + tutorEarnedSem).toFixed(2);
 
       // Εκτιμώμενος Φόρος = (Έσοδα με Αποδείξεις - Έξοδα με Τιμολόγιο) * 0,22
       const taxBase = +(esodaApodeixi - exodaTimologio).toFixed(2);
       const estTax = +(Math.max(0, taxBase) * 0.22).toFixed(2);
 
-      // Καθαρή Ταμειακή Διαφορά = Συνολικά Έσοδα - Συνολικά Έξοδα
-      const netCashResult = +(esoda - synolikaExoda).toFixed(2);
+      // Ανεξόφλητες οφειλές φοιτητών για την επιλεγμένη περίοδο
+      const periodUpfront = semReqs.filter(r => r.status !== 'ΑΚΥΡΩΘΗΚΕ').reduce((s, r) => s + Number(r.upfront_charge || 0), 0);
+      const periodHourly = semLogs.reduce((s, l) => s + Number(l.total_charge || 0), 0);
+      const periodTurnover = +(periodUpfront + periodHourly).toFixed(2);
+      const periodStudentCredited = +semPayments
+        .filter(p => p.type === 'STUDENT_PAYMENT')
+        .reduce((s, p) => s + Number(p.credited_amount || 0), 0).toFixed(2);
+
+      const ofeilesPeriodou = selectedPeriod === 'ALL'
+        ? +Number(totalStudentDebtAll || 0).toFixed(2)
+        : Math.max(0, +(periodTurnover - periodStudentCredited).toFixed(2));
+
+      // Καθαρό Αποτέλεσμα (αν εισπραχθούν οι οφειλές φοιτητών & πληρωθούν όλες οι αμοιβές καθηγητών + φόρος)
+      const expectedEsodaFull = +(esoda + ofeilesPeriodou).toFixed(2);
+      const netFullResult = +(expectedEsodaFull - synolikaExodaFull - estTax).toFixed(2);
+      const rawCashDiff = +(esoda - (leitourgikaExoda + plirwmesKathigiton)).toFixed(2);
 
       // Αιτήματα περιόδου
       const reqActive = semReqs.filter(r => r.status === 'OK').length;
       const reqPending = semReqs.filter(r => r.status === 'ΕΚΚΡΕΜΕΣ').length;
       const reqDone = semReqs.filter(r => r.status === 'ΟΛΟΚΛΗΡΩΘΗΚΕ').length;
 
-      // Ανάλυση Εξόδων περιόδου ανά κατηγορία
+      // Ανάλυση Εξόδων περιόδου ανά κατηγορία (με δεδουλευμένες αμοιβές καθηγητών)
       const catTotals = {};
       semPayments.filter(p => p.type === 'EXPENSE').forEach(p => {
         const c = getPaymentExpenseCategory(p);
-        catTotals[c] = +( (catTotals[c] || 0) + Number(p.amount || 0) ).toFixed(2);
+        catTotals[c] = +((catTotals[c] || 0) + Number(p.amount || 0)).toFixed(2);
       });
-      if (plirwmesKathigiton > 0) {
-        catTotals['ΑΜΟΙΒΕΣ ΚΑΘΗΓΗΤΩΝ (ΠΛΗΡΩΜΕΣ)'] = plirwmesKathigiton;
+      if (tutorEarnedSem > 0) {
+        catTotals['ΑΜΟΙΒΕΣ ΚΑΘΗΓΗΤΩΝ'] = tutorEarnedSem;
       }
       const sortedCats = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
 
       const breakdownHtml = sortedCats.length ? `
         <div class="pt-2 border-t border-slate-100">
-          <p class="text-xs font-bold text-slate-700 mb-2">Ανάλυση Εξόδων Περιόδου</p>
+          <p class="text-xs font-bold text-slate-700 mb-2">Ανάλυση Εξόδων & Αμοιβών Περιόδου</p>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
             ${sortedCats.map(([cat, val]) => {
-              const pct = synolikaExoda > 0 ? ((val / synolikaExoda) * 100).toFixed(1) : '0.0';
+              const pct = synolikaExodaFull > 0 ? ((val / synolikaExodaFull) * 100).toFixed(1) : '0.0';
               return `
                 <div class="flex justify-between items-center text-xs bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
                   <span class="font-semibold text-slate-700 truncate pr-2">${cat}</span>
@@ -895,7 +912,10 @@
         <div class="bg-white rounded-2xl p-4 border border-slate-200 space-y-3.5 shadow-sm">
           <div class="flex flex-wrap justify-between items-center gap-2">
             <div>
-              <h3 class="font-bold text-sm text-slate-900">Οικονομικά Αποτελέσματα & Στατιστικά Περιόδου</h3>
+              <div class="flex items-center gap-2">
+                <h3 class="font-bold text-sm text-slate-900">Οικονομικά Αποτελέσματα & Στατιστικά Περιόδου</h3>
+                <button onclick="setTab('admin_guide')" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-800 border border-slate-200 transition">ℹ️ Πώς υπολογίζονται;</button>
+              </div>
               <p class="text-[11px] text-slate-400">Χειμερινό 1/10–28/2 • Εαρινό 1/3–30/6 • Επαναληπτική 1/7–30/9</p>
             </div>
             <select onchange="selectedPeriod = this.value; render();" class="border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 bg-slate-50 outline-none">
@@ -908,12 +928,13 @@
               <p class="text-[11px] text-emerald-800 font-medium">Έσοδα Ταμείου</p>
               <p class="text-lg font-extrabold text-emerald-700 mt-0.5">${esoda} €</p>
               <p class="text-[10px] text-emerald-700/80">Με απόδειξη: ${esodaApodeixi}€</p>
+              <p class="text-[9px] text-slate-500">+ Οφειλές περιόδου: ${ofeilesPeriodou}€</p>
             </div>
             <div class="bg-rose-50/70 border border-rose-200/70 rounded-xl p-3">
-              <p class="text-[11px] text-rose-800 font-medium">Έξοδα & Πληρωμές</p>
-              <p class="text-lg font-extrabold text-rose-700 mt-0.5">${synolikaExoda} €</p>
-              <p class="text-[10px] text-rose-800/80 leading-tight">Έξοδα: ${leitourgikaExoda}€ • Αμοιβές: ${plirwmesKathigiton}€</p>
-              <p class="text-[9px] text-slate-500">Δεδουλευμένες αμοιβές: ${tutorEarnedSem}€</p>
+              <p class="text-[11px] text-rose-800 font-medium">Έξοδα & Αμοιβές (Σύνολο)</p>
+              <p class="text-lg font-extrabold text-rose-700 mt-0.5">${synolikaExodaFull} €</p>
+              <p class="text-[10px] text-rose-800/80 leading-tight">Έξοδα: ${leitourgikaExoda}€ • Αμοιβές: ${tutorEarnedSem}€</p>
+              <p class="text-[9px] text-slate-500">Ήδη πληρωμένες αμοιβές: ${plirwmesKathigiton}€</p>
             </div>
             <div class="bg-amber-50/70 border border-amber-200/70 rounded-xl p-3">
               <p class="text-[11px] text-amber-900 font-medium">Εκτιμώμενος Φόρος (22%)</p>
@@ -921,9 +942,10 @@
               <p class="text-[10px] text-amber-800/80 leading-tight">(${esodaApodeixi}€ αποδ. − ${exodaTimologio}€ τιμ.) × 22%</p>
             </div>
             <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
-              <p class="text-[11px] text-slate-600 font-medium">Καθαρή Ταμειακή Διαφορά</p>
-              <p class="text-lg font-extrabold ${netCashResult >= 0 ? 'text-emerald-700' : 'text-red-700'} mt-0.5">${netCashResult >= 0 ? '+' : ''}${netCashResult} €</p>
-              <p class="text-[10px] text-slate-400">Συνολικά Έσοδα − Συνολικά Έξοδα</p>
+              <p class="text-[11px] text-slate-600 font-medium">Καθαρό Αποτέλεσμα (Πλήρες)</p>
+              <p class="text-lg font-extrabold ${netFullResult >= 0 ? 'text-emerald-700' : 'text-red-700'} mt-0.5">${netFullResult >= 0 ? '+' : ''}${netFullResult} €</p>
+              <p class="text-[10px] text-slate-500 leading-tight">Με είσπραξη οφειλών & εξόφληση αμοιβών</p>
+              <p class="text-[9px] text-slate-400">Καθαρά ταμειακά: ${rawCashDiff >= 0 ? '+' : ''}${rawCashDiff}€</p>
             </div>
           </div>
 
@@ -1192,7 +1214,7 @@
               </div>
             </div>
 
-            ${renderSemesterResultsBlock()}
+            ${renderSemesterResultsBlock(totalStudentDebt)}
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
               <div class="space-y-4">
@@ -1450,6 +1472,105 @@
                 <button onclick="addExpenseCategory()" class="bg-red-800 text-white text-xs font-bold px-4 py-2 rounded-xl">+ Προσθήκη</button>
               </div>
               <div class="divide-y divide-slate-100">${catRows}</div>
+            </div>`;
+        }
+
+        else if (currentTab === 'admin_guide') {
+          container.innerHTML = `
+            <div class="space-y-4">
+              <div class="bg-red-800 text-white rounded-2xl p-5 shadow-sm">
+                <h2 class="text-lg font-extrabold">Οδηγός Οικονομικών Μεγεθών & Τύπων</h2>
+                <p class="text-xs text-red-100 mt-1">Αναλυτική εξήγηση του τρόπου με τον οποίο η εφαρμογή υπολογίζει το ταμείο, τον τζίρο, τις οφειλές, τον φόρο και το καθαρό αποτέλεσμα.</p>
+              </div>
+
+              <div class="bg-white rounded-2xl p-4 border border-slate-200 space-y-2.5 shadow-sm">
+                <h3 class="font-bold text-sm text-red-800">1. Διαχωρισμός Εξαμήνων & Ακαδημαϊκών Ετών</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                  <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                    <p class="font-bold text-slate-900">Χειμερινό Εξάμηνο</p>
+                    <p class="text-slate-600 mt-0.5">1 Οκτωβρίου – 28/29 Φεβρουαρίου</p>
+                    <p class="text-[11px] text-slate-400 mt-1">π.χ. ΧΕΙΜ 26/27</p>
+                  </div>
+                  <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                    <p class="font-bold text-slate-900">Εαρινό Εξάμηνο</p>
+                    <p class="text-slate-600 mt-0.5">1 Μαρτίου – 30 Ιουνίου</p>
+                    <p class="text-[11px] text-slate-400 mt-1">π.χ. ΕΑΡ 27</p>
+                  </div>
+                  <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                    <p class="font-bold text-slate-900">Επαναληπτική Περίοδος</p>
+                    <p class="text-slate-600 mt-0.5">1 Ιουλίου – 30 Σεπτεμβρίου</p>
+                    <p class="text-[11px] text-slate-400 mt-1">π.χ. ΕΠΑΝ 27</p>
+                  </div>
+                </div>
+                <p class="text-xs text-slate-600"><strong>Ακαδημαϊκό Έτος (π.χ. Έτος 26/27):</strong> Ομαδοποιεί αυτόματα το Χειμερινό 26/27 + Εαρινό 27 + Επαναληπτική 27.</p>
+              </div>
+
+              <div class="bg-white rounded-2xl p-4 border border-slate-200 space-y-3 shadow-sm">
+                <h3 class="font-bold text-sm text-red-800">2. Βασικοί Δείκτες Ταμείου (Επάνω Κάρτες)</h3>
+                <div class="space-y-2.5 text-xs text-slate-700">
+                  <div class="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                    <p class="font-bold text-slate-900">Τρέχον Ταμείο</p>
+                    <p class="font-mono text-[11px] text-red-800 mt-0.5">Συνολικές Εισπράξεις (Φοιτητών + Λοιπά Έσοδα) − Συνολικές Πληρωμές (Έξοδα + Πληρωμές Καθηγητών)</p>
+                    <p class="text-slate-500 mt-1">Δείχνει τα πραγματικά διαθέσιμα χρήματα που υπάρχουν αυτή τη στιγμή στο ταμείο/λογαριασμό.</p>
+                  </div>
+                  <div class="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                    <p class="font-bold text-slate-900">Καθαρό Ταμείο (Θεωρητικό)</p>
+                    <p class="font-mono text-[11px] text-red-800 mt-0.5">Τρέχον Ταμείο + Οφειλές Φοιτητών − Υπόλοιπα Καθηγητών</p>
+                    <p class="text-slate-500 mt-1">Δείχνει πόσα χρήματα θα έμεναν καθαρά στο ταμείο αν αυτή τη στιγμή πληρώνονταν όλες οι εκκρεμείς οφειλές φοιτητών και εξοφλούνταν όλοι οι καθηγητές.</p>
+                  </div>
+                  <div class="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                    <p class="font-bold text-slate-900">Τζίρος Περιόδου / Συνολικός Τζίρος</p>
+                    <p class="font-mono text-[11px] text-red-800 mt-0.5">Εφάπαξ Χρεώσεις Πακέτων περιόδου + Ωριαίες Χρεώσεις Μαθημάτων περιόδου</p>
+                    <p class="text-slate-500 mt-1">Μετρά τη συνολική αξία των μαθημάτων/πακέτων που χρεώθηκαν στους φοιτητές μέσα στην επιλεγμένη περίοδο, ανεξάρτητα από το αν έχουν εξοφληθεί ήδη.</p>
+                  </div>
+                  <div class="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                    <p class="font-bold text-slate-900">Οφειλές Φοιτητών & Κάβες (Πιστωτικά Υπόλοιπα)</p>
+                    <p class="font-mono text-[11px] text-red-800 mt-0.5">Υπόλοιπο Φοιτητή = Προηγούμενο Υπόλοιπο + Εφάπαξ Πακέτα + Ωριαίες Χρεώσεις − Πιστώσεις Πληρωμών</p>
+                    <p class="text-slate-500 mt-1">Αν το αποτέλεσμα είναι θετικό (&gt; 0€) εμφανίζεται στις <strong>Οφειλές</strong>. Αν είναι αρνητικό (&lt; 0€) εμφανίζεται στις <strong>Κάβες</strong> (προκαταβολή/πιστωτικό υπόλοιπο).</p>
+                  </div>
+                  <div class="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                    <p class="font-bold text-slate-900">Υπόλοιπα Καθηγητών</p>
+                    <p class="font-mono text-[11px] text-red-800 mt-0.5">Συνολικές Δεδουλευμένες Αμοιβές (από ώρες μαθημάτων) − Συνολικές Πληρωμές προς τον Καθηγητή</p>
+                    <p class="text-slate-500 mt-1">Δείχνει το ακριβές ποσό που οφείλεται ακόμα σε κάθε καθηγητή.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="bg-white rounded-2xl p-4 border border-slate-200 space-y-3 shadow-sm">
+                <h3 class="font-bold text-sm text-red-800">3. Οικονομικά Αποτελέσματα Περιόδου (Ανά Εξάμηνο / Έτος)</h3>
+                <div class="space-y-2.5 text-xs text-slate-700">
+                  <div class="bg-emerald-50/60 rounded-xl p-3 border border-emerald-100">
+                    <p class="font-bold text-emerald-900">Έσοδα Ταμείου</p>
+                    <p class="font-mono text-[11px] text-emerald-800 mt-0.5">Εισπράξεις Φοιτητών + Λοιπά Έσοδα περιόδου</p>
+                    <p class="text-slate-600 mt-1">Περιλαμβάνει τα χρήματα που μπήκαν πραγματικά στο ταμείο. Από κάτω εμφανίζονται ξεχωριστά τα <strong>Έσοδα με Απόδειξη</strong> και οι <strong>Οφειλές Περιόδου</strong> (ανεξόφλητο μέρος του τζίρου της περιόδου).</p>
+                  </div>
+                  <div class="bg-rose-50/60 rounded-xl p-3 border border-rose-100">
+                    <p class="font-bold text-rose-900">Έξοδα & Αμοιβές (Σύνολο)</p>
+                    <p class="font-mono text-[11px] text-rose-800 mt-0.5">Λειτουργικά Έξοδα περιόδου + Δεδουλευμένες Αμοιβές Καθηγητών περιόδου</p>
+                    <p class="text-slate-600 mt-1">Περιλαμβάνει το σύνολο των εξόδων και <strong>όλες τις αμοιβές καθηγητών που προέκυψαν από τα μαθήματα της περιόδου</strong> (ακόμα και αν δεν έχουν εκταμιευτεί ακόμα), ώστε να φαίνεται το πραγματικό κόστος. Από κάτω αναγράφεται και πόσες αμοιβές έχουν ήδη πληρωθεί.</p>
+                  </div>
+                  <div class="bg-amber-50/60 rounded-xl p-3 border border-amber-100">
+                    <p class="font-bold text-amber-900">Εκτιμώμενος Φόρος (22%)</p>
+                    <p class="font-mono text-[11px] text-amber-800 mt-0.5">max(0, Έσοδα με Απόδειξη − Έξοδα με Τιμολόγιο) × 0,22</p>
+                    <p class="text-slate-600 mt-1">Υπολογίζεται με συντελεστή 22% μόνο επί της θετικής διαφοράς μεταξύ εισπράξεων με απόδειξη και εξόδων για τα οποία έχει σημειωθεί <strong>✓ Τιμολόγιο</strong>.</p>
+                  </div>
+                  <div class="bg-slate-50 rounded-xl p-3 border border-slate-200">
+                    <p class="font-bold text-slate-900">Καθαρό Αποτέλεσμα (Πλήρες)</p>
+                    <p class="font-mono text-[11px] text-red-800 mt-0.5">(Έσοδα Ταμείου + Οφειλές Φοιτητών Περιόδου) − (Λειτουργικά Έξοδα + Δεδουλευμένες Αμοιβές) − Εκτιμώμενος Φόρος</p>
+                    <p class="text-slate-600 mt-1">Δείχνει το τελικό καθαρό κέρδος/ζημία της περιόδου, υποθέτοντας ότι <strong>οι φοιτητές θα πληρώσουν όλες τις οφειλές τους</strong> και ότι <strong>θα εξοφληθούν όλες οι αμοιβές των καθηγητών και ο εκτιμώμενος φόρος</strong>. Από κάτω φαίνεται και η καθαρή ταμειακή διαφορά (μόνο όσα έχουν ήδη μπει και βγει).</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="bg-white rounded-2xl p-4 border border-slate-200 space-y-2.5 shadow-sm">
+                <h3 class="font-bold text-sm text-red-800">4. Κανόνες Χρέωσης, Πακέτων & Εκπτώσεων</h3>
+                <ul class="list-disc pl-5 space-y-1.5 text-xs text-slate-700">
+                  <li><strong>Προπληρωμένα Πακέτα (π.χ. 9 ή 18 ώρες):</strong> Το ποσό του πακέτου χρεώνεται <strong>εφάπαξ εξαρχής</strong> κατά την ανάθεση. Κάθε μάθημα εντός των ωρών του πακέτου έχει 0€ επιπλέον χρέωση στον φοιτητή (ενώ ο καθηγητής πιστώνεται κανονικά την αμοιβή του). Τυχόν ώρες πέραν του πακέτου χρεώνονται 25€/ώρα.</li>
+                  <li><strong>Πληρωμή «Χωρίς Απόδειξη» (+10%):</strong> Εφαρμόζεται <strong>μόνο στην υφιστάμενη οφειλή</strong> (π.χ. 90€ μετρητά εξοφλούν 100€ οφειλής: <span class="font-mono">Πίστωση = Ποσό ÷ 0,9</span>). Αν το ποσό ξεπερνά την οφειλή, το επιπλέον ποσό πιστώνεται 1:1 ως Κάβα χωρίς έκπτωση.</li>
+                  <li><strong>Αμοιβή Καθηγητή:</strong> Υπολογίζεται ανάλογα με τον αριθμό ατόμων στο μάθημα (1–7 άτομα) βάσει του πίνακα στην καρτέλα <em>Τιμές</em>.</li>
+                  <li><strong>Unistudents (-15%):</strong> Όταν ένα μάθημα είναι σημειωμένο ως Unistudents, υπολογίζεται αυτόματα προμήθεια 15% επί της αξίας του μαθήματος.</li>
+                </ul>
+              </div>
             </div>`;
         }
       }
