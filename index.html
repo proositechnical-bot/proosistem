@@ -714,12 +714,30 @@
     let studentFilterTab = 'debt';
     let reqFilterPeriod = 'ALL';
     let reqFilterStatus = 'ALL';
+    let reqFilterStudent = 'ALL';
     let reqFilterInst = 'ALL';
     let reqFilterDept = 'ALL';
     let reqFilterTutor = 'ALL';
+    let reqFilterProg = 'ALL';
     let reqFilterRef = 'ALL';
+    let reqFilterUni = 'ALL';
     let reqFilterSearch = '';
     let reqFilterAlarmOnly = false;
+
+    function resetRequestFilters() {
+      reqFilterPeriod = 'ALL';
+      reqFilterStatus = 'ALL';
+      reqFilterStudent = 'ALL';
+      reqFilterInst = 'ALL';
+      reqFilterDept = 'ALL';
+      reqFilterTutor = 'ALL';
+      reqFilterProg = 'ALL';
+      reqFilterRef = 'ALL';
+      reqFilterUni = 'ALL';
+      reqFilterSearch = '';
+      reqFilterAlarmOnly = false;
+      render();
+    }
 
     let courseFilterInst = 'ALL';
     let courseFilterDept = 'ALL';
@@ -1799,6 +1817,18 @@
             .map(r => (r.department_snapshot || r.students?.department || '').trim()).filter(Boolean))).sort();
           const allRefs = ['GOOGLE', 'META', 'ΠΡΟΩΣΗ', 'ΑΛΛΟΝ ΦΟΙΤΗΤΗ', 'ΚΑΘΗΓΗΤΗ', 'UNISTUDENTS', 'ΑΛΛΟ'];
 
+          // Λίστα φοιτητών που έχουν αιτήματα (αλφαβητικά)
+          const reqStudentsMap = new Map();
+          requests.forEach(r => {
+            if (r.student_id && r.students) {
+              const label = `${r.students.last_name || ''} ${r.students.first_name || ''}`.trim();
+              if (label) reqStudentsMap.set(r.student_id, label);
+            }
+          });
+          const allReqStudents = Array.from(reqStudentsMap.entries()).sort((a, b) => a[1].localeCompare(b[1], 'el'));
+
+          const allProgs = Array.from(new Set(requests.map(r => (r.desired_program || r.lesson_type || '').trim()).filter(Boolean))).sort();
+
           const getPendingDays = getRequestPendingDays;
           const hasAlarm = hasRequestAlarm;
 
@@ -1811,6 +1841,7 @@
               } else if (reqFilterStatus !== 'ALL' && r.status !== reqFilterStatus) {
                 return false;
               }
+              if (reqFilterStudent !== 'ALL' && r.student_id !== reqFilterStudent) return false;
               const inst = r.institution_snapshot || r.students?.institution || '';
               const dept = r.department_snapshot || r.students?.department || '';
               if (reqFilterInst !== 'ALL' && inst !== reqFilterInst) return false;
@@ -1820,7 +1851,11 @@
                   if (!r.alt_tutor_name) return false;
                 } else if (r.tutor_id !== reqFilterTutor) return false;
               }
+              const progVal = (r.desired_program || r.lesson_type || '').trim();
+              if (reqFilterProg !== 'ALL' && progVal !== reqFilterProg) return false;
               if (reqFilterRef !== 'ALL' && (r.referral_source || '') !== reqFilterRef) return false;
+              if (reqFilterUni === 'YES' && !r.is_unistudents) return false;
+              if (reqFilterUni === 'NO' && r.is_unistudents) return false;
               if (reqFilterAlarmOnly && !hasAlarm(r)) return false;
               if (q) {
                 const hay = `${r.request_number || ''} ${r.students?.last_name || ''} ${r.students?.first_name || ''} ${r.course_title_snapshot || ''} ${r.tutors?.short_name || ''} ${r.alt_tutor_name || ''} ${r.tutor_notes || ''} ${r.student_comments || ''} ${inst} ${dept}`.toLowerCase();
@@ -1831,6 +1866,7 @@
             .sort((a, b) => (Number(a.request_number || 0) - Number(b.request_number || 0)));
 
           const alarmCount = requests.filter(hasAlarm).length;
+          const hasAnyFilter = reqFilterPeriod !== 'ALL' || reqFilterStatus !== 'ALL' || reqFilterStudent !== 'ALL' || reqFilterInst !== 'ALL' || reqFilterDept !== 'ALL' || reqFilterTutor !== 'ALL' || reqFilterProg !== 'ALL' || reqFilterRef !== 'ALL' || reqFilterUni !== 'ALL' || reqFilterSearch.trim() !== '' || reqFilterAlarmOnly;
 
           const rowsHtml = filtered.map(r => {
             const s = r.students || {};
@@ -1912,70 +1948,111 @@
               </tr>`;
           }).join('');
 
+          const darkSelCls = 'w-full mt-1 bg-slate-700 text-white border border-slate-600 rounded px-1 py-0.5 text-[10px] font-medium outline-none focus:border-amber-400';
+
           container.innerHTML = `
             <div class="flex flex-wrap justify-between items-center gap-2">
               <button onclick="openNewRequestModal()" class="flex-1 sm:flex-none bg-red-800 text-white py-2.5 px-5 rounded-xl font-bold text-sm shadow-sm active:scale-95 transition">
                 + Νέο Αίτημα / Καταχώρηση Φοιτητή
               </button>
-              <div class="flex items-center gap-2 text-xs">
+              <div class="flex items-center gap-2 text-xs flex-wrap">
                 <span class="bg-white border border-slate-200 px-3 py-1.5 rounded-xl font-bold text-slate-700">Εμφανίζονται: ${filtered.length} / ${requests.length}</span>
                 ${alarmCount > 0 ? `<button onclick="reqFilterAlarmOnly = !reqFilterAlarmOnly; render();" class="px-3 py-1.5 rounded-xl font-bold border ${reqFilterAlarmOnly ? 'bg-red-700 text-white border-red-800' : 'bg-red-50 text-red-700 border-red-200'}">🔴 ${alarmCount} Alarm &gt;5 ημ. (χωρίς σχόλια)</button>` : ''}
-              </div>
-            </div>
-
-            <div class="bg-white rounded-2xl p-2.5 border border-slate-200 shadow-sm">
-              <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
-                <input type="text" value="${reqFilterSearch}" oninput="reqFilterSearch = this.value; render();" placeholder="🔍 Φοιτητής / Μάθημα / ΑΑ" class="col-span-2 sm:col-span-2 lg:col-span-1 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs bg-slate-50" />
-                <select onchange="reqFilterPeriod = this.value; render();" class="border border-slate-300 rounded-xl px-2 py-1.5 text-xs font-semibold bg-slate-50">
-                  ${buildPeriodOptionsHtml(reqFilterPeriod, true)}
-                </select>
-                <select onchange="reqFilterStatus = this.value; render();" class="border border-slate-300 rounded-xl px-2 py-1.5 text-xs font-semibold bg-slate-50">
-                  <option value="ALL" ${reqFilterStatus === 'ALL' ? 'selected' : ''}>Όλες οι Καταστάσεις</option>
-                  <option value="ΕΚΚΡΕΜΕΣ" ${reqFilterStatus === 'ΕΚΚΡΕΜΕΣ' ? 'selected' : ''}>ΕΚΚΡΕΜΕΣ (Όλα)</option>
-                  <option value="PENDING_NO_COMMENT" ${reqFilterStatus === 'PENDING_NO_COMMENT' ? 'selected' : ''}>ΕΚΚΡΕΜΕΣ (ΧΩΡΙΣ ΣΧΟΛΙΑ)</option>
-                  <option value="OK" ${reqFilterStatus === 'OK' ? 'selected' : ''}>OK (Ενεργό)</option>
-                  <option value="ΟΛΟΚΛΗΡΩΘΗΚΕ" ${reqFilterStatus === 'ΟΛΟΚΛΗΡΩΘΗΚΕ' ? 'selected' : ''}>ΟΛΟΚΛΗΡΩΘΗΚΕ</option>
-                  <option value="ΑΚΥΡΩΘΗΚΕ" ${reqFilterStatus === 'ΑΚΥΡΩΘΗΚΕ' ? 'selected' : ''}>ΑΚΥΡΩΘΗΚΕ</option>
-                </select>
-                <select onchange="reqFilterInst = this.value; reqFilterDept = 'ALL'; render();" class="border border-slate-300 rounded-xl px-2 py-1.5 text-xs font-semibold bg-slate-50">
-                  <option value="ALL" ${reqFilterInst === 'ALL' ? 'selected' : ''}>Όλα τα Ιδρύματα</option>
-                  ${allInsts.map(i => `<option value="${i}" ${reqFilterInst === i ? 'selected' : ''}>${i}</option>`).join('')}
-                </select>
-                <select onchange="reqFilterDept = this.value; render();" class="border border-slate-300 rounded-xl px-2 py-1.5 text-xs font-semibold bg-slate-50">
-                  <option value="ALL" ${reqFilterDept === 'ALL' ? 'selected' : ''}>Όλες οι Σχολές</option>
-                  ${allDepts.map(d => `<option value="${d}" ${reqFilterDept === d ? 'selected' : ''}>${d}</option>`).join('')}
-                </select>
-                <select onchange="reqFilterTutor = this.value; render();" class="border border-slate-300 rounded-xl px-2 py-1.5 text-xs font-semibold bg-slate-50">
-                  <option value="ALL" ${reqFilterTutor === 'ALL' ? 'selected' : ''}>Όλοι οι Καθηγητές</option>
-                  <option value="ALT" ${reqFilterTutor === 'ALT' ? 'selected' : ''}>Εναλλακτικοί Καθηγητές</option>
-                  ${tutors.map(t => `<option value="${t.id}" ${reqFilterTutor === t.id ? 'selected' : ''}>${t.short_name}</option>`).join('')}
-                </select>
-                <select onchange="reqFilterRef = this.value; render();" class="border border-slate-300 rounded-xl px-2 py-1.5 text-xs font-semibold bg-slate-50">
-                  <option value="ALL" ${reqFilterRef === 'ALL' ? 'selected' : ''}>Όλες οι Πηγές</option>
-                  ${allRefs.map(rf => `<option value="${rf}" ${reqFilterRef === rf ? 'selected' : ''}>${rf}</option>`).join('')}
-                </select>
+                ${hasAnyFilter ? `<button onclick="resetRequestFilters()" class="px-3 py-1.5 rounded-xl font-bold border border-slate-300 bg-white text-slate-700 hover:bg-slate-100">↺ Καθαρισμός Φίλτρων</button>` : ''}
               </div>
             </div>
 
             <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               <div class="overflow-x-auto">
                 <table class="w-full text-left text-[11px] border-collapse">
-                  <thead class="bg-slate-800 text-white text-[10px] uppercase tracking-wide">
+                  <thead class="bg-slate-800 text-white text-[10px] uppercase tracking-wide align-top">
                     <tr>
-                      <th class="px-1.5 py-2 whitespace-nowrap">Α/Α</th>
-                      <th class="px-1.5 py-2 whitespace-nowrap">Κατάσταση</th>
-                      <th class="px-1.5 py-2">Σχόλια Καθηγ.</th>
-                      <th class="px-1.5 py-2">Σχόλια Διοίκ.</th>
-                      <th class="px-1.5 py-2 whitespace-nowrap">Ημ/νία & Εξ.</th>
-                      <th class="px-1.5 py-2">Φοιτητής</th>
-                      <th class="px-1.5 py-2">Ίδρυμα / Σχολή</th>
-                      <th class="px-1.5 py-2">Μάθημα</th>
-                      <th class="px-1.5 py-2 whitespace-nowrap">Καθηγητής</th>
-                      <th class="px-1.5 py-2">Επιθυμία / Προγρ.</th>
-                      <th class="px-1.5 py-2 whitespace-nowrap">Πηγή</th>
-                      <th class="px-1.5 py-2 whitespace-nowrap text-center">Έκπτ.</th>
-                      <th class="px-1.5 py-2 whitespace-nowrap text-center">Uni</th>
-                      <th class="px-1.5 py-2"></th>
+                      <th class="px-1.5 py-2 whitespace-nowrap">
+                        <div>Α/Α</div>
+                      </th>
+                      <th class="px-1.5 py-2 min-w-[95px]">
+                        <div>Κατάσταση</div>
+                        <select onchange="reqFilterStatus = this.value; render();" class="${darkSelCls}">
+                          <option value="ALL" ${reqFilterStatus === 'ALL' ? 'selected' : ''}>Όλες</option>
+                          <option value="ΕΚΚΡΕΜΕΣ" ${reqFilterStatus === 'ΕΚΚΡΕΜΕΣ' ? 'selected' : ''}>ΕΚΚΡΕΜΕΣ (Όλα)</option>
+                          <option value="PENDING_NO_COMMENT" ${reqFilterStatus === 'PENDING_NO_COMMENT' ? 'selected' : ''}>ΕΚΚΡΕΜΕΣ (Χωρίς σχόλια)</option>
+                          <option value="OK" ${reqFilterStatus === 'OK' ? 'selected' : ''}>OK (Ενεργό)</option>
+                          <option value="ΟΛΟΚΛΗΡΩΘΗΚΕ" ${reqFilterStatus === 'ΟΛΟΚΛΗΡΩΘΗΚΕ' ? 'selected' : ''}>ΟΛΟΚΛΗΡΩΘΗΚΕ</option>
+                          <option value="ΑΚΥΡΩΘΗΚΕ" ${reqFilterStatus === 'ΑΚΥΡΩΘΗΚΕ' ? 'selected' : ''}>ΑΚΥΡΩΘΗΚΕ</option>
+                        </select>
+                      </th>
+                      <th class="px-1.5 py-2">
+                        <div>Σχόλια Καθηγ.</div>
+                      </th>
+                      <th class="px-1.5 py-2">
+                        <div>Σχόλια Διοίκ.</div>
+                      </th>
+                      <th class="px-1.5 py-2 min-w-[95px]">
+                        <div>Ημ/νία &amp; Εξ.</div>
+                        <select onchange="reqFilterPeriod = this.value; render();" class="${darkSelCls}">
+                          ${buildPeriodOptionsHtml(reqFilterPeriod, true)}
+                        </select>
+                      </th>
+                      <th class="px-1.5 py-2 min-w-[120px]">
+                        <div>Φοιτητής</div>
+                        <select onchange="reqFilterStudent = this.value; render();" class="${darkSelCls}">
+                          <option value="ALL" ${reqFilterStudent === 'ALL' ? 'selected' : ''}>Όλοι (${allReqStudents.length})</option>
+                          ${allReqStudents.map(([sid, name]) => `<option value="${sid}" ${reqFilterStudent === sid ? 'selected' : ''}>${name}</option>`).join('')}
+                        </select>
+                      </th>
+                      <th class="px-1.5 py-2 min-w-[115px]">
+                        <div>Ίδρυμα / Σχολή</div>
+                        <div class="flex flex-col gap-0.5 mt-1">
+                          <select onchange="reqFilterInst = this.value; reqFilterDept = 'ALL'; render();" class="w-full bg-slate-700 text-white border border-slate-600 rounded px-1 py-0.5 text-[10px] font-medium outline-none">
+                            <option value="ALL" ${reqFilterInst === 'ALL' ? 'selected' : ''}>Όλα Ιδρ.</option>
+                            ${allInsts.map(i => `<option value="${i}" ${reqFilterInst === i ? 'selected' : ''}>${i}</option>`).join('')}
+                          </select>
+                          <select onchange="reqFilterDept = this.value; render();" class="w-full bg-slate-700 text-white border border-slate-600 rounded px-1 py-0.5 text-[10px] font-medium outline-none">
+                            <option value="ALL" ${reqFilterDept === 'ALL' ? 'selected' : ''}>Όλες Σχολές</option>
+                            ${allDepts.map(d => `<option value="${d}" ${reqFilterDept === d ? 'selected' : ''}>${d}</option>`).join('')}
+                          </select>
+                        </div>
+                      </th>
+                      <th class="px-1.5 py-2 min-w-[130px]">
+                        <div>Μάθημα</div>
+                        <input id="reqInlineSearch" type="text" value="${reqFilterSearch}" oninput="reqFilterSearch = this.value; render(); const el=document.getElementById('reqInlineSearch'); if(el){el.focus(); el.setSelectionRange(el.value.length, el.value.length);}" placeholder="🔍 Αναζήτηση..." class="w-full mt-1 bg-slate-700 text-white placeholder-slate-400 border border-slate-600 rounded px-1.5 py-0.5 text-[10px] font-normal outline-none focus:border-amber-400" />
+                      </th>
+                      <th class="px-1.5 py-2 min-w-[95px]">
+                        <div>Καθηγητής</div>
+                        <select onchange="reqFilterTutor = this.value; render();" class="${darkSelCls}">
+                          <option value="ALL" ${reqFilterTutor === 'ALL' ? 'selected' : ''}>Όλοι</option>
+                          <option value="ALT" ${reqFilterTutor === 'ALT' ? 'selected' : ''}>Εναλλακτικοί</option>
+                          ${tutors.map(t => `<option value="${t.id}" ${reqFilterTutor === t.id ? 'selected' : ''}>${t.short_name}</option>`).join('')}
+                        </select>
+                      </th>
+                      <th class="px-1.5 py-2 min-w-[90px]">
+                        <div>Επιθ. / Προγρ.</div>
+                        <select onchange="reqFilterProg = this.value; render();" class="${darkSelCls}">
+                          <option value="ALL" ${reqFilterProg === 'ALL' ? 'selected' : ''}>Όλα</option>
+                          ${allProgs.map(pr => `<option value="${pr}" ${reqFilterProg === pr ? 'selected' : ''}>${pr}</option>`).join('')}
+                        </select>
+                      </th>
+                      <th class="px-1.5 py-2 min-w-[75px]">
+                        <div>Πηγή</div>
+                        <select onchange="reqFilterRef = this.value; render();" class="${darkSelCls}">
+                          <option value="ALL" ${reqFilterRef === 'ALL' ? 'selected' : ''}>Όλες</option>
+                          ${allRefs.map(rf => `<option value="${rf}" ${reqFilterRef === rf ? 'selected' : ''}>${rf}</option>`).join('')}
+                        </select>
+                      </th>
+                      <th class="px-1.5 py-2 whitespace-nowrap text-center">
+                        <div>Έκπτ.</div>
+                      </th>
+                      <th class="px-1.5 py-2 min-w-[55px] text-center">
+                        <div>Uni</div>
+                        <select onchange="reqFilterUni = this.value; render();" class="${darkSelCls}">
+                          <option value="ALL" ${reqFilterUni === 'ALL' ? 'selected' : ''}>Όλα</option>
+                          <option value="YES" ${reqFilterUni === 'YES' ? 'selected' : ''}>ΝΑΙ</option>
+                          <option value="NO" ${reqFilterUni === 'NO' ? 'selected' : ''}>ΟΧΙ</option>
+                        </select>
+                      </th>
+                      <th class="px-1.5 py-2 text-right">
+                        ${hasAnyFilter ? `<button onclick="resetRequestFilters()" title="Καθαρισμός φίλτρων" class="px-1.5 py-0.5 rounded bg-slate-700 hover:bg-red-700 text-white text-[10px]">↺</button>` : ''}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
