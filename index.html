@@ -2355,7 +2355,7 @@
                       ${statusBadge}
                     </div>
                     <p class="text-xs text-slate-500 mt-0.5">Εμφάνιση: <strong>${t.short_name}</strong> • ${t.email ? t.email.trim() : 'Χωρίς email'}</p>
-                    ${(t.phone || t.notes) ? `<p class="text-[11px] text-slate-500 mt-0.5">${t.phone ? '📞 ' + t.phone : ''}${t.phone && t.notes ? ' • ' : ''}${t.notes || ''}</p>` : ''}
+                    ${(t.phone || t.notes) ? `<p class="text-[11px] text-slate-500 mt-0.5">${t.phone ? `<a href="tel:${t.phone}" class="text-red-700 underline font-medium">📞 ${t.phone}</a>` : ''}${t.phone && t.notes ? ' • ' : ''}${t.notes || ''}</p>` : ''}
                   </div>
                 </div>
                 <div class="flex gap-2 pt-1">
