@@ -1726,6 +1726,7 @@
                   <button onclick="completeGroup('${gid}')" class="px-3.5 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium border border-slate-200">
                     Ολοκλήρωση
                   </button>
+                  ${isAdminUser ? `<button onclick="cancelGroup('${gid}')" class="px-3 py-2.5 rounded-xl bg-rose-50 text-rose-700 text-xs font-bold border border-rose-200 hover:bg-rose-100">Ακύρωση</button>` : ''}
                 </div>
               </div>`;
           }).join('');
@@ -1784,6 +1785,7 @@
                   <button onclick="completeRequest('${r.id}')" class="px-3.5 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium border border-slate-200">
                     Ολοκλήρωση
                   </button>
+                  ${isAdminUser ? `<button onclick="cancelRequest('${r.id}')" class="px-3 py-2.5 rounded-xl bg-rose-50 text-rose-700 text-xs font-bold border border-rose-200 hover:bg-rose-100">Ακύρωση</button>` : ''}
                 </div>
               </div>`;
           }).join('');
@@ -3732,6 +3734,31 @@
       await loadAllData();
       render();
     }
+
+    async function cancelRequest(reqId) {
+      if (!isAdminUser) return;
+      if (!confirm('Είσαι σίγουρος ότι θέλεις να ακυρώσεις αυτό το μάθημα; (Η κατάσταση θα αλλάξει σε ΑΚΥΡΩΘΗΚΕ)')) return;
+      const { error } = await db.from('requests')
+        .update({ status: 'ΑΚΥΡΩΘΗΚΕ' })
+        .eq('id', reqId);
+      if (error) { alert('Σφάλμα: ' + error.message); return; }
+      showToast('Το μάθημα ακυρώθηκε.');
+      await loadAllData();
+      render();
+    }
+
+    async function cancelGroup(groupId) {
+      if (!isAdminUser) return;
+      if (!confirm('Είσαι σίγουρος ότι θέλεις να ακυρώσεις ΟΛΑ τα μέλη αυτού του τμήματος; (Η κατάσταση θα αλλάξει σε ΑΚΥΡΩΘΗΚΕ)')) return;
+      const { error } = await db.from('requests')
+        .update({ status: 'ΑΚΥΡΩΘΗΚΕ' })
+        .eq('group_id', groupId);
+      if (error) { alert('Σφάλμα: ' + error.message); return; }
+      showToast('Το τμήμα ακυρώθηκε.');
+      await loadAllData();
+      render();
+    }
+
 
     // --- ΛΕΙΤΟΥΡΓΙΕΣ ADMIN (ΑΙΤΗΜΑΤΑ & ΜΑΘΗΜΑΤΑ ΣΧΟΛΩΝ) ---
     function populateNrStudents(selectedId = '') {
