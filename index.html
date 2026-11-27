@@ -56,8 +56,15 @@
         <div class="flex items-center gap-1.5 flex-wrap justify-end">
           <span id="tutorNameBadge" class="hidden bg-red-900 text-white text-xs font-semibold rounded-lg px-2.5 py-1.5 border border-red-700"></span>
           <select id="tutorSelect" class="hidden bg-red-900 text-white text-xs rounded-lg px-2 py-1.5 border border-red-700 outline-none"></select>
+          <button onclick="setTab('admin_notifications')" id="notifHeaderBtn" class="hidden relative bg-red-950/60 text-red-100 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-red-700/60 hover:bg-red-900">
+            🔔 <span class="hidden sm:inline">Ειδοποιήσεις</span>
+            <span id="notifBadgeCount" class="hidden ml-1 px-1.5 py-0.5 rounded-full bg-amber-400 text-red-950 text-[10px] font-extrabold">0</span>
+          </button>
+          <button onclick="setTab('admin_schedule')" id="schedHeaderBtn" class="hidden bg-red-950/60 text-red-100 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-red-700/60 hover:bg-red-900">
+            📅 <span class="hidden sm:inline">Πρόγραμμα</span>
+          </button>
           <button onclick="openExportModal()" id="exportHeaderBtn" class="hidden bg-red-950/60 text-red-100 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-red-700/60 hover:bg-red-900">
-            📥 Excel / Backup
+            📥 Excel
           </button>
           <button onclick="toggleAppMode()" id="modeToggleBtn" class="hidden bg-white text-red-900 font-bold text-xs px-2.5 py-1.5 rounded-lg shadow-sm active:scale-95 transition">
             Καθηγητής
@@ -729,6 +736,21 @@
     let tutorPendingSearch = '';
     let tutorLogsPeriodFilter = 'ALL';
     let startLessonMode = 'single';
+    let dbNotifications = [];
+
+    function getDismissedDynamicIds() {
+      try { return JSON.parse(localStorage.getItem('proosi_dismissed_alerts') || '[]'); }
+      catch { return []; }
+    }
+    function dismissDynamicAlert(alertId) {
+      const list = getDismissedDynamicIds();
+      if (!list.includes(alertId)) {
+        list.push(alertId);
+        localStorage.setItem('proosi_dismissed_alerts', JSON.stringify(list));
+      }
+      updateNotifBadge();
+      render();
+    }
 
     // ================= ΚΑΝΟΝΑΣ ΕΞΑΜΗΝΩΝ, ΕΤΩΝ & ΚΑΤΑΤΑΚΤΗΡΙΩΝ =================
     // Χειμερινό: 1/10 - 28(29)/2 -> ΧΕΙΜ YY/(YY+1)
@@ -977,9 +999,13 @@
       const modeBtn = document.getElementById('modeToggleBtn');
       const expBtn = document.getElementById('exportHeaderBtn');
 
+      const notifBtn = document.getElementById('notifHeaderBtn');
+      const schedBtn = document.getElementById('schedHeaderBtn');
       if (isAdminUser) {
         modeBtn.classList.remove('hidden');
         expBtn.classList.remove('hidden');
+        notifBtn.classList.remove('hidden');
+        schedBtn.classList.remove('hidden');
         const activeTutors = tutors.filter(t => t.is_active !== false);
         sel.innerHTML = activeTutors.map(t => `<option value="${t.id}">${t.short_name}</option>`).join('');
         currentTutorId = userProfile.id;
@@ -998,6 +1024,8 @@
         currentTutorId = userProfile.id;
         modeBtn.classList.add('hidden');
         expBtn.classList.add('hidden');
+        notifBtn.classList.add('hidden');
+        schedBtn.classList.add('hidden');
         sel.classList.add('hidden');
         badge.textContent = userProfile.short_name;
         badge.classList.remove('hidden');
@@ -1049,6 +1077,154 @@
         from += step;
       }
       schoolCourses = allCourses;
+
+      // Φόρτωση ειδοποιήσεων τελευταίων 10 ημερών (για Admin)
+      const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: nData } = await db
+        .from('admin_notifications')
+        .select('*')
+        .gte('created_at', tenDaysAgo)
+        .order('created_at', { ascending: false });
+      dbNotifications = nData || [];
+      updateNotifBadge();
+    }
+
+    async function logNotification(eventType, title, details = '') {
+      try {
+        await db.from('admin_notifications').insert({
+          event_type: eventType,
+          title,
+          details
+        });
+      } catch (e) { /* ignore if table not yet created */ }
+    }
+
+    function getMissedScheduledLessons() {
+      const now = new Date();
+      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+      const seenGroups = new Set();
+      const missed = [];
+
+      requests.filter(r => r.status === 'OK' && r.next_lesson_at).forEach(r => {
+        if (r.group_id) {
+          if (seenGroups.has(r.group_id)) return;
+          seenGroups.add(r.group_id);
+        }
+        const schedDt = new Date(r.next_lesson_at);
+        if (isNaN(schedDt.getTime()) || schedDt > twoHoursAgo) return;
+
+        const schedDateStr = String(r.next_lesson_at).slice(0, 10);
+        const hasLogOnOrAfter = logs.some(l =>
+          (r.group_id ? requests.some(m => m.group_id === r.group_id && m.id === l.request_id) : l.request_id === r.id) &&
+          l.lesson_date >= schedDateStr
+        );
+        if (!hasLogOnOrAfter) {
+          missed.push(r);
+        }
+      });
+      return missed;
+    }
+
+    function getAllActiveNotifications() {
+      const dismissed = getDismissedDynamicIds();
+      const items = [];
+
+      // 1. Ειδοποιήσεις βάσης (τελευταίων 10 ημερών)
+      dbNotifications.forEach(n => {
+        items.push({
+          id: n.id,
+          isDb: true,
+          type: n.event_type,
+          title: n.title,
+          details: n.details || '',
+          dateStr: String(n.created_at || '').slice(0, 16).replace('T', ' ')
+        });
+      });
+
+      // 2. Live: Χαμένα προγραμματισμένα μαθήματα
+      getMissedScheduledLessons().forEach(r => {
+        const dynId = `MISSED_${r.id}_${r.next_lesson_at}`;
+        if (dismissed.includes(dynId)) return;
+        const label = r.group_id ? `Τμήμα: ${r.group_name || r.course_title_snapshot}` : `${r.students?.last_name || ''} ${r.students?.first_name || ''} — ${r.course_title_snapshot}`;
+        items.push({
+          id: dynId,
+          isDb: false,
+          type: 'MISSED_LESSON',
+          title: `⚠️ Αναμενόμενο μάθημα δεν καταχωρήθηκε (${r.tutors?.short_name || '-'})`,
+          details: `${label} • Προγραμματισμένο: ${String(r.next_lesson_at).replace('T', ' ')}`,
+          dateStr: String(r.next_lesson_at).replace('T', ' ')
+        });
+      });
+
+      // 3. Live: Φοιτητές χωρίς επικοινωνία (>5 ημ. χωρίς σχόλιο καθηγητή, εκτός μελλοντικού εξαμήνου)
+      requests.filter(hasRequestAlarm).forEach(r => {
+        const dynId = `ALARM_${r.id}`;
+        if (dismissed.includes(dynId)) return;
+        const days = getRequestPendingDays(r);
+        items.push({
+          id: dynId,
+          isDb: false,
+          type: 'NO_CONTACT',
+          title: `🔴 Χωρίς επικοινωνία (${days} ημ.) — ${r.students?.last_name || ''} ${r.students?.first_name || ''}`,
+          details: `${r.course_title_snapshot} • Καθηγητής: ${r.tutors?.short_name || r.alt_tutor_name || 'Χωρίς ανάθεση'}`,
+          dateStr: r.request_date || ''
+        });
+      });
+
+      // 4. Live: Φοιτητές με υπόλοιπο > 120€
+      students.forEach(s => {
+        const bal = getStudentBalance(s);
+        if (bal > 120) {
+          const dynId = `DEBT120_${s.id}`;
+          if (dismissed.includes(dynId)) return;
+          items.push({
+            id: dynId,
+            isDb: false,
+            type: 'HIGH_DEBT',
+            title: `💶 Υπόλοιπο > 120€: ${s.last_name} ${s.first_name} (${bal}€)`,
+            details: `${s.institution || ''}${s.phone ? ' • Τηλ: ' + s.phone : ''}`,
+            dateStr: 'Τρέχον υπόλοιπο'
+          });
+        }
+      });
+
+      return items;
+    }
+
+    function updateNotifBadge() {
+      const badge = document.getElementById('notifBadgeCount');
+      if (!badge || !isAdminUser) return;
+      const cnt = getAllActiveNotifications().length;
+      badge.textContent = cnt;
+      badge.classList.toggle('hidden', cnt === 0);
+    }
+
+    async function deleteNotification(id, isDb) {
+      if (isDb) {
+        const { error } = await db.from('admin_notifications').delete().eq('id', id);
+        if (error) { alert('Σφάλμα: ' + error.message); return; }
+        dbNotifications = dbNotifications.filter(n => n.id !== id);
+      } else {
+        dismissDynamicAlert(id);
+        return;
+      }
+      updateNotifBadge();
+      render();
+    }
+
+    async function clearAllNotifications() {
+      if (!confirm('Να διαγραφούν όλες οι εμφανιζόμενες ειδοποιήσεις;')) return;
+      if (dbNotifications.length) {
+        const ids = dbNotifications.map(n => n.id);
+        await db.from('admin_notifications').delete().in('id', ids);
+        dbNotifications = [];
+      }
+      const allDyn = getAllActiveNotifications().filter(x => !x.isDb).map(x => x.id);
+      const list = Array.from(new Set([...getDismissedDynamicIds(), ...allDyn]));
+      localStorage.setItem('proosi_dismissed_alerts', JSON.stringify(list));
+      updateNotifBadge();
+      showToast('Όλες οι ειδοποιήσεις καθαρίστηκαν.');
+      render();
     }
 
     function getTutorHourlyForGroup(numStudents) {
@@ -1071,11 +1247,15 @@
       const sel = document.getElementById('tutorSelect');
       const expBtn = document.getElementById('exportHeaderBtn');
 
+      const notifBtn = document.getElementById('notifHeaderBtn');
+      const schedBtn = document.getElementById('schedHeaderBtn');
       if (appMode === 'admin') {
         btn.textContent = 'Καθηγητής';
         sub.textContent = 'Διαχείριση & Ταμείο';
         sel.classList.add('hidden');
         expBtn.classList.remove('hidden');
+        notifBtn.classList.remove('hidden');
+        schedBtn.classList.remove('hidden');
         currentTab = 'admin_cash';
       } else {
         const activeTutors = tutors.filter(t => t.is_active !== false);
@@ -1085,6 +1265,8 @@
         sub.textContent = 'Πίνακας Καθηγητή';
         sel.classList.remove('hidden');
         expBtn.classList.add('hidden');
+        notifBtn.classList.add('hidden');
+        schedBtn.classList.add('hidden');
         currentTab = 'active';
       }
       renderNav();
@@ -1682,16 +1864,12 @@
               ? `${r.lesson_type} (${hrs}/${pkgHrs}ώ)`
               : `${r.desired_program || r.lesson_type || 'Ιδιαίτερο'}${hrs > 0 ? ` (${hrs}ώ)` : ''}`;
 
-            const commentsParts = [];
-            if (r.tutor_notes && r.tutor_notes.trim()) {
-              commentsParts.push(`<div class="text-slate-900 font-medium"><span class="text-[9px] font-bold text-emerald-700">Καθηγ.:</span> ${r.tutor_notes.trim()}</div>`);
-            }
-            if (r.student_comments && r.student_comments.trim()) {
-              commentsParts.push(`<div class="text-slate-500 text-[10px]"><span class="text-[9px] font-bold text-slate-400">Διοίκ.:</span> ${r.student_comments.trim()}</div>`);
-            }
-            const commentsHtml = commentsParts.length
-              ? commentsParts.join('')
-              : '<span class="text-slate-300 italic text-[10px]">Χωρίς σχόλιο καθηγ.</span>';
+            const tutorNoteHtml = (r.tutor_notes && r.tutor_notes.trim())
+              ? `<div class="text-slate-900 font-medium">${r.tutor_notes.trim()}</div>`
+              : '<span class="text-slate-300 italic text-[10px]">—</span>';
+            const adminNoteHtml = (r.student_comments && r.student_comments.trim())
+              ? `<div class="text-slate-600">${r.student_comments.trim()}</div>`
+              : '<span class="text-slate-300 italic text-[10px]">—</span>';
 
             return `
               <tr class="border-b border-slate-100 hover:bg-slate-50/80 align-top ${alarm ? 'bg-red-50/40' : ''}">
@@ -1700,8 +1878,11 @@
                   <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${statusCls}">${r.status}</span>
                   ${pendingBadge}
                 </td>
-                <td class="px-1.5 py-2 text-[10px] leading-snug break-words max-w-[160px]">
-                  ${commentsHtml}
+                <td class="px-1.5 py-2 text-[10px] leading-snug break-words max-w-[145px]">
+                  ${tutorNoteHtml}
+                </td>
+                <td class="px-1.5 py-2 text-[10px] leading-snug break-words max-w-[130px]">
+                  ${adminNoteHtml}
                 </td>
                 <td class="px-1.5 py-2 whitespace-nowrap">
                   <div class="font-semibold text-slate-800 text-[10px]">${r.request_date || '-'}</div>
@@ -1783,7 +1964,8 @@
                     <tr>
                       <th class="px-1.5 py-2 whitespace-nowrap">Α/Α</th>
                       <th class="px-1.5 py-2 whitespace-nowrap">Κατάσταση</th>
-                      <th class="px-1.5 py-2">Σχόλια</th>
+                      <th class="px-1.5 py-2">Σχόλια Καθηγ.</th>
+                      <th class="px-1.5 py-2">Σχόλια Διοίκ.</th>
                       <th class="px-1.5 py-2 whitespace-nowrap">Ημ/νία & Εξ.</th>
                       <th class="px-1.5 py-2">Φοιτητής</th>
                       <th class="px-1.5 py-2">Ίδρυμα / Σχολή</th>
@@ -1797,7 +1979,7 @@
                     </tr>
                   </thead>
                   <tbody>
-                    ${rowsHtml || '<tr><td colspan="13" class="text-center text-slate-400 py-8">Δεν βρέθηκαν αιτήματα με αυτά τα φίλτρα.</td></tr>'}
+                    ${rowsHtml || '<tr><td colspan="14" class="text-center text-slate-400 py-8">Δεν βρέθηκαν αιτήματα με αυτά τα φίλτρα.</td></tr>'}
                   </tbody>
                 </table>
               </div>
@@ -2356,6 +2538,139 @@
               </div>
             </div>`;
         }
+
+        else if (currentTab === 'admin_notifications') {
+          const items = getAllActiveNotifications();
+          const badgeMap = {
+            START_LESSON: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+            LOG_HOURS: 'bg-blue-50 text-blue-800 border-blue-200',
+            COMPLETE_LESSON: 'bg-indigo-50 text-indigo-800 border-indigo-200',
+            TUTOR_COMMENT: 'bg-amber-50 text-amber-800 border-amber-200',
+            HIGH_DEBT: 'bg-rose-50 text-rose-800 border-rose-200',
+            MISSED_LESSON: 'bg-red-100 text-red-900 border-red-300',
+            NO_CONTACT: 'bg-red-50 text-red-800 border-red-200'
+          };
+          const labelMap = {
+            START_LESSON: 'Έναρξη Μαθήματος',
+            LOG_HOURS: 'Καταχώριση Ωρών',
+            COMPLETE_LESSON: 'Ολοκλήρωση',
+            TUTOR_COMMENT: 'Σχόλιο Καθηγητή',
+            HIGH_DEBT: 'Υπόλοιπο >120€',
+            MISSED_LESSON: 'Χαμένο Μάθημα',
+            NO_CONTACT: 'Χωρίς Επικοινωνία'
+          };
+
+          const cardsHtml = items.length ? items.map(n => `
+            <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200 flex justify-between items-start gap-3">
+              <div class="space-y-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${badgeMap[n.type] || 'bg-slate-100 text-slate-700 border-slate-200'}">${labelMap[n.type] || n.type}</span>
+                  <span class="text-[11px] text-slate-400">${n.dateStr}</span>
+                </div>
+                <p class="font-bold text-sm text-slate-900">${n.title}</p>
+                ${n.details ? `<p class="text-xs text-slate-600">${n.details}</p>` : ''}
+              </div>
+              <button onclick="deleteNotification('${n.id}', ${n.isDb})" class="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-bold text-slate-500 hover:bg-rose-50 hover:text-rose-700 shrink-0" title="Διαγραφή ειδοποίησης">✕</button>
+            </div>`).join('') : '<div class="bg-white rounded-2xl p-8 text-center text-slate-400 text-sm border border-slate-200">Δεν υπάρχουν ενεργές ειδοποιήσεις των τελευταίων 10 ημερών.</div>';
+
+          container.innerHTML = `
+            <div class="flex flex-wrap justify-between items-center gap-2">
+              <div>
+                <h2 class="text-lg font-extrabold text-slate-900">🔔 Ειδοποιήσεις (Τελευταίες 10 ημέρες)</h2>
+                <p class="text-xs text-slate-500">Ενάρξεις, μαθήματα, ολοκληρώσεις, σχόλια καθηγητών, οφειλές &gt;120€ και ειδοποιήσεις επικοινωνίας.</p>
+              </div>
+              ${items.length ? `<button onclick="clearAllNotifications()" class="px-3.5 py-2 rounded-xl bg-slate-800 text-white text-xs font-bold">🗑️ Καθαρισμός Όλων</button>` : ''}
+            </div>
+            <div class="space-y-2.5">${cardsHtml}</div>`;
+        }
+
+        else if (currentTab === 'admin_schedule') {
+          const now = new Date();
+          const sevenDaysAgoStr = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+          const sevenDaysAhead = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+          // 1. Χαμένα / Εκπρόθεσμα προγραμματισμένα μαθήματα
+          const missed = getMissedScheduledLessons();
+
+          // 2. Τι έγινε τις τελευταίες 7 ημέρες
+          const pastLogs = logs.filter(l => l.lesson_date && l.lesson_date >= sevenDaysAgoStr);
+
+          // 3. Τι θα γίνει τις επόμενες 7 ημέρες (ομαδοποιημένα τμήματα)
+          const seenGrp = new Set();
+          const upcoming = [];
+          requests.filter(r => r.status === 'OK' && r.next_lesson_at).forEach(r => {
+            if (r.group_id) {
+              if (seenGrp.has(r.group_id)) return;
+              seenGrp.add(r.group_id);
+            }
+            const dt = new Date(r.next_lesson_at);
+            if (!isNaN(dt.getTime()) && dt >= new Date(now.getTime() - 2 * 60 * 60 * 1000) && dt <= sevenDaysAhead) {
+              upcoming.push(r);
+            }
+          });
+          upcoming.sort((a, b) => new Date(a.next_lesson_at) - new Date(b.next_lesson_at));
+
+          const missedHtml = missed.length ? `
+            <div class="bg-red-50 border border-red-200 rounded-2xl p-4 space-y-2 shadow-sm">
+              <h3 class="font-bold text-sm text-red-900">⚠️ Αναμενόμενα Μαθήματα που δεν καταχωρήθηκαν (${missed.length})</h3>
+              <div class="space-y-1.5">
+                ${missed.map(r => `
+                  <div class="bg-white rounded-xl p-3 border border-red-100 flex justify-between items-center gap-2 text-xs">
+                    <div>
+                      <p class="font-bold text-slate-900">${r.group_id ? `👥 ${r.group_name || r.course_title_snapshot}` : `${r.students?.last_name || ''} ${r.students?.first_name || ''} — ${r.course_title_snapshot}`}</p>
+                      <p class="text-slate-500">Καθηγητής: <strong class="text-red-800">${r.tutors?.short_name || '-'}</strong> • Αναμενόταν: <strong>${String(r.next_lesson_at).replace('T', ' ')}</strong></p>
+                    </div>
+                    <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-red-100 text-red-800 shrink-0">ΕΚΠΡΟΘΕΣΜΟ</span>
+                  </div>`).join('')}
+              </div>
+            </div>` : '';
+
+          const upcomingHtml = `
+            <div class="bg-white rounded-2xl p-4 border border-slate-200 space-y-2.5 shadow-sm">
+              <div class="flex justify-between items-center">
+                <h3 class="font-bold text-sm text-emerald-800">📅 Επόμενες 7 Ημέρες (${upcoming.length})</h3>
+              </div>
+              ${upcoming.length ? upcoming.map(r => {
+                const membersCount = r.group_id ? requests.filter(m => m.group_id === r.group_id && m.status === 'OK').length : 1;
+                return `
+                  <div class="bg-emerald-50/40 border border-emerald-100 rounded-xl p-3 space-y-1 text-xs">
+                    <div class="flex justify-between items-center">
+                      <span class="font-extrabold text-emerald-900">🕒 ${String(r.next_lesson_at).replace('T', ' • ')}</span>
+                      <span class="font-bold text-red-800">${r.tutors?.short_name || '-'}</span>
+                    </div>
+                    <p class="font-bold text-slate-900">${r.group_id ? `👥 ${r.group_name || r.course_title_snapshot} (${membersCount} άτ.)` : `${r.students?.last_name || ''} ${r.students?.first_name || ''} — ${r.course_title_snapshot}`}</p>
+                    ${r.teams_link ? `<a href="${r.teams_link}" target="_blank" class="text-[11px] font-bold text-blue-700 underline inline-block">🎥 Άνοιγμα Teams Link</a>` : ''}
+                  </div>`;
+              }).join('') : '<p class="text-xs text-slate-400 py-4 text-center">Δεν υπάρχουν προγραμματισμένα μαθήματα για τις επόμενες 7 ημέρες.</p>'}
+            </div>`;
+
+          const pastHtml = `
+            <div class="bg-white rounded-2xl p-4 border border-slate-200 space-y-2.5 shadow-sm">
+              <div class="flex justify-between items-center">
+                <h3 class="font-bold text-sm text-slate-800">✅ Τι έγινε τις τελευταίες 7 ημέρες (${pastLogs.length})</h3>
+              </div>
+              ${pastLogs.length ? pastLogs.map(l => `
+                <div class="bg-slate-50 border border-slate-100 rounded-xl p-3 flex justify-between items-center gap-2 text-xs">
+                  <div>
+                    <p class="text-[10px] text-slate-400">${l.lesson_date} • <strong class="text-red-800">${l.tutors?.short_name || ''}</strong></p>
+                    <p class="font-bold text-slate-900">${l.students ? `${l.students.last_name} ${l.students.first_name}` : 'PROMO'} — ${l.course_title || ''}</p>
+                    ${l.content ? `<p class="text-[11px] text-slate-500">${l.content}</p>` : ''}
+                  </div>
+                  <span class="font-extrabold text-red-800 shrink-0">${l.hours} ώρ.</span>
+                </div>`).join('') : '<p class="text-xs text-slate-400 py-4 text-center">Δεν καταχωρήθηκαν μαθήματα τις τελευταίες 7 ημέρες.</p>'}
+            </div>`;
+
+          container.innerHTML = `
+            <div>
+              <h2 class="text-lg font-extrabold text-slate-900">📅 Επόμενα Μαθήματα Καθηγητών & Εβδομαδιαία Εικόνα</h2>
+              <p class="text-xs text-slate-500">Τι πραγματοποιήθηκε τις τελευταίες 7 ημέρες και τι είναι προγραμματισμένο για την επόμενη εβδομάδα.</p>
+            </div>
+            ${missedHtml}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+              ${upcomingHtml}
+              ${pastHtml}
+            </div>`;
+        }
       }
     }
 
@@ -2649,6 +2964,12 @@
 
       const { error } = await db.from('lesson_logs').insert(payloads);
       if (error) { alert('Σφάλμα: ' + error.message); return; }
+      const actorName = tutors.find(t => t.id === currentTutorId)?.short_name || 'Καθηγητής';
+      const targetDesc = payloads.length > 1
+        ? `Τμήμα ${primaryReq.group_name || primaryReq.course_title_snapshot} (${payloads.length} φοιτητές)`
+        : `${primaryReq.students?.last_name || ''} ${primaryReq.students?.first_name || ''} — ${primaryReq.course_title_snapshot}`;
+      await logNotification('LOG_HOURS', `${actorName} κατέγραψε ${hours} ώρ. μαθήματος`, `${targetDesc} (${lessonDate})`);
+
       activeHoursGroupId = null;
       closeModal('hoursModal');
       showToast(payloads.length > 1 ? `Οι ώρες καταχωρήθηκαν και στους ${payloads.length} φοιτητές του τμήματος!` : 'Οι ώρες καταχωρήθηκαν!');
@@ -2660,6 +2981,9 @@
       const val = document.getElementById(`tnote_${reqId}`)?.value.trim() || null;
       const { error } = await db.from('requests').update({ tutor_notes: val }).eq('id', reqId);
       if (error) { alert('Σφάλμα: ' + error.message); return; }
+      const rNoted = requests.find(x => x.id === reqId);
+      const actorN = tutors.find(t => t.id === currentTutorId)?.short_name || 'Καθηγητής';
+      await logNotification('TUTOR_COMMENT', `${actorN} ενημέρωσε σχόλιο αιτήματος`, `${rNoted?.students?.last_name || ''} ${rNoted?.students?.first_name || ''} — «${val || '(κενό)'}»`);
       showToast('Το σχόλιο αποθηκεύτηκε!');
       await loadAllData();
       render();
@@ -2866,6 +3190,9 @@
       btn.disabled = false;
       if (err) { alert('Σφάλμα: ' + err.message); return; }
 
+      const rStart = requests.find(x => x.id === primaryId);
+      const actorS = tutors.find(t => t.id === currentTutorId)?.short_name || 'Καθηγητής';
+      await logNotification('START_LESSON', `${actorS} ξεκίνησε μάθημα (${startLessonMode === 'single' ? 'Ιδιαίτερο' : 'Τμήμα'})`, `${rStart?.students?.last_name || ''} ${rStart?.students?.first_name || ''} — ${rStart?.course_title_snapshot || ''} (Έναρξη: ${startDate})`);
       closeModal('startLessonModal');
       showToast('Η έναρξη καταχωρήθηκε!');
       await loadAllData();
@@ -2930,6 +3257,9 @@
         .update({ status: 'ΟΛΟΚΛΗΡΩΘΗΚΕ' })
         .eq('id', reqId);
       if (error) { alert('Σφάλμα: ' + error.message); return; }
+      const rComp = requests.find(x => x.id === reqId);
+      const actorC = tutors.find(t => t.id === currentTutorId)?.short_name || 'Καθηγητής';
+      await logNotification('COMPLETE_LESSON', `${actorC} ολοκλήρωσε μάθημα`, `${rComp?.students?.last_name || ''} ${rComp?.students?.first_name || ''} — ${rComp?.course_title_snapshot || ''}`);
       showToast('Το μάθημα ολοκληρώθηκε!');
       await loadAllData();
       render();
@@ -2941,6 +3271,9 @@
         .update({ status: 'ΟΛΟΚΛΗΡΩΘΗΚΕ' })
         .eq('group_id', groupId);
       if (error) { alert('Σφάλμα: ' + error.message); return; }
+      const gComp = requests.find(x => x.group_id === groupId);
+      const actorCg = tutors.find(t => t.id === currentTutorId)?.short_name || 'Καθηγητής';
+      await logNotification('COMPLETE_LESSON', `${actorCg} ολοκλήρωσε τμήμα`, `${gComp?.group_name || gComp?.course_title_snapshot || 'Τμήμα'}`);
       showToast('Το τμήμα ολοκληρώθηκε!');
       await loadAllData();
       render();
