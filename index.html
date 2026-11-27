@@ -100,19 +100,19 @@
 
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="text-xs font-semibold text-slate-600">Ημερομηνία</label>
-          <input id="mDate" type="date" class="w-full mt-1 border rounded-lg p-2.5 text-sm" />
+          <label class="text-xs font-semibold text-slate-600">Ημερομηνία *</label>
+          <input id="mDate" type="date" required class="w-full mt-1 border rounded-lg p-2.5 text-sm" />
         </div>
         <div>
-          <label class="text-xs font-semibold text-slate-600">Ώρες</label>
-          <input id="mHours" type="number" step="0.5" min="0.5" value="2" oninput="updateHoursPreview()" class="w-full mt-1 border rounded-lg p-2.5 text-sm font-bold" />
+          <label class="text-xs font-semibold text-slate-600">Ώρες *</label>
+          <input id="mHours" type="number" required step="0.5" min="0.5" value="2" oninput="updateHoursPreview()" class="w-full mt-1 border rounded-lg p-2.5 text-sm font-bold" />
         </div>
       </div>
 
       <div class="grid grid-cols-3 gap-2 items-center">
         <div>
-          <label class="text-xs font-semibold text-slate-600">Άτομα (1-7)</label>
-          <input id="mStudentsCount" type="number" min="1" max="7" value="1" oninput="updateHoursPreview()" class="w-full mt-1 border rounded-lg p-2 text-sm" />
+          <label class="text-xs font-semibold text-slate-600">Άτομα (1-7) *</label>
+          <input id="mStudentsCount" type="number" required min="1" max="7" value="1" oninput="updateHoursPreview()" class="w-full mt-1 border rounded-lg p-2 text-sm" />
         </div>
         <div id="mUniWrap" class="pt-4">
           <label class="flex items-center gap-1.5 text-xs font-medium cursor-pointer">
@@ -128,10 +128,10 @@
         </div>
       </div>
 
-      <div class="bg-amber-50/70 border border-amber-200 rounded-xl p-3 space-y-2">
-        <label class="text-xs font-bold text-amber-950 block">Επόμενο Μάθημα *</label>
-        <input id="mNextLessonAt" type="datetime-local" oninput="if(this.value) document.getElementById('mNextNotSet').checked = false;" class="w-full border border-amber-200 rounded-lg p-2 text-xs bg-white" />
-        <label class="flex items-center gap-2 text-xs font-semibold text-amber-900 cursor-pointer">
+      <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
+        <label class="text-xs font-semibold text-slate-700 block">Επόμενο Μάθημα *</label>
+        <input id="mNextLessonAt" type="datetime-local" oninput="if(this.value) document.getElementById('mNextNotSet').checked = false;" class="w-full border border-slate-300 rounded-lg p-2 text-xs bg-white" />
+        <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
           <input id="mNextNotSet" type="checkbox" onchange="if(this.checked) document.getElementById('mNextLessonAt').value = '';" class="w-4 h-4 rounded accent-red-800" />
           <span>Δεν έχει οριστεί ακόμα</span>
         </label>
@@ -589,7 +589,7 @@
       <div class="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-xl text-xs">
         <button type="button" id="slModeSingle" onclick="setStartMode('single')" class="py-2 rounded-lg font-bold bg-red-800 text-white">Ιδιαίτερο</button>
         <button type="button" id="slModeNewGroup" onclick="setStartMode('new_group')" class="py-2 rounded-lg font-bold text-slate-600">Νέο Τμήμα</button>
-        <button type="button" id="slModeExistingGroup" onclick="setStartMode('existing_group')" class="py-2 rounded-lg font-bold text-slate-600">Υφιστάμενο Τμήμα</button>
+        <button type="button" id="slModeExistingGroup" onclick="setStartMode('existing_group')" class="py-2 rounded-lg font-bold text-slate-600">Προσθήκη σε Τμήμα</button>
       </div>
 
       <!-- Νέο Τμήμα: Επιλογή 2+ φοιτητών & Πακέτου -->
@@ -3046,8 +3046,13 @@
       const primaryReq = requests.find(x => x.id === reqId);
       if (!primaryReq) return;
 
+      const lessonDateCheck = document.getElementById('mDate').value;
       const hours = Number(document.getElementById('mHours').value);
-      if (!hours || hours <= 0) { alert('Βάλε έγκυρες ώρες.'); return; }
+      const countCheck = Number(document.getElementById('mStudentsCount').value);
+      if (!lessonDateCheck || !hours || hours <= 0 || !countCheck || countCheck < 1 || countCheck > 7) {
+        alert('Συμπλήρωσε όλα τα υποχρεωτικά πεδία (*) — Ημερομηνία, Ώρες και Άτομα (1–7).');
+        return;
+      }
 
       const nextLessonAt = document.getElementById('mNextLessonAt').value;
       const nextNotSet = document.getElementById('mNextNotSet').checked;
@@ -3158,32 +3163,33 @@
         `<option value="${p.name}" data-hours="${p.package_hours}" data-price="${p.total_price}">${p.name} (${p.total_price}€)</option>`
       ).join('');
 
-      // Εκκρεμή αιτήματα του καθηγητή για επιλογή 2+ φοιτητών
-      const myPending = requests.filter(x => x.tutor_id === currentTutorId && x.status === 'ΕΚΚΡΕΜΕΣ');
-      document.getElementById('slGroupStudentsList').innerHTML = myPending.map(p => `
+      // Εκκρεμή αιτήματα + μεμονωμένοι ενεργοί φοιτητές του καθηγητή για δημιουργία Νέου Τμήματος (2+ άτομα)
+      const myCandidates = requests.filter(x =>
+        x.tutor_id === currentTutorId &&
+        (x.status === 'ΕΚΚΡΕΜΕΣ' || (x.status === 'OK' && !x.group_id))
+      );
+      document.getElementById('slGroupStudentsList').innerHTML = myCandidates.map(p => `
         <label class="flex items-center gap-2 text-xs p-1.5 rounded hover:bg-slate-50 cursor-pointer">
           <input type="checkbox" class="sl-group-chk w-4 h-4 accent-red-800" value="${p.id}" ${p.id === r.id ? 'checked' : ''} />
-          <span><strong>${p.students?.last_name} ${p.students?.first_name}</strong> — ${p.course_title_snapshot}</span>
+          <span><strong>${p.students?.last_name} ${p.students?.first_name}</strong> — ${p.course_title_snapshot}${p.status === 'OK' ? ' <span class="text-[10px] text-emerald-700 font-bold">(Ενεργό)</span>' : ''}</span>
         </label>`).join('');
 
-      // Υφιστάμενα ενεργά τμήματα του καθηγητή
-      const myActive = requests.filter(x => x.tutor_id === currentTutorId && x.status === 'OK');
+      // ΜΟΝΟ υφιστάμενα ενεργά τμήματα (με group_id) για Προσθήκη σε Τμήμα
+      const myActiveGroups = requests.filter(x => x.tutor_id === currentTutorId && x.status === 'OK' && x.group_id);
       const existingGroups = {};
-      myActive.forEach(a => {
-        const key = a.group_id || `SINGLE_${a.id}`;
-        if (!existingGroups[key]) {
-          existingGroups[key] = {
-            key,
-            label: a.group_id
-              ? `👥 ${a.group_name || a.course_title_snapshot}`
-              : `👤 ${a.students?.last_name} ${a.students?.first_name} — ${a.course_title_snapshot} (μετατροπή σε τμήμα)`
+      myActiveGroups.forEach(a => {
+        if (!existingGroups[a.group_id]) {
+          const count = myActiveGroups.filter(m => m.group_id === a.group_id).length;
+          existingGroups[a.group_id] = {
+            key: a.group_id,
+            label: `👥 ${a.group_name || a.course_title_snapshot} (${count} άτ.)`
           };
         }
       });
       const egList = Object.values(existingGroups);
       document.getElementById('slExistingGroupSelect').innerHTML = egList.length
         ? egList.map(g => `<option value="${g.key}">${g.label}</option>`).join('')
-        : '<option value="">Δεν υπάρχει ενεργό μάθημα/τμήμα ακόμα</option>';
+        : '<option value="">Δεν υπάρχει ενεργό τμήμα ακόμα</option>';
 
       setStartMode('single');
       document.getElementById('startLessonModal').classList.remove('hidden');
