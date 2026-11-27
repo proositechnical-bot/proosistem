@@ -654,6 +654,20 @@
     </div>
   </div>
 
+  <!-- 11. Modal Τροποποίησης / Ακύρωσης Καταχωρημένων Ωρών -->
+  <div id="manageHoursModal" class="hidden fixed inset-0 bg-black/50 z-30 flex items-end sm:items-center justify-center p-4">
+    <div class="bg-white w-full max-w-lg rounded-2xl p-5 space-y-3.5 shadow-xl max-h-[90vh] flex flex-col">
+      <div>
+        <h2 class="font-bold text-lg text-slate-900">Τροποποίηση / Ακύρωση Ωρών</h2>
+        <p id="mhSubtitle" class="text-xs text-slate-500"></p>
+      </div>
+      <div id="mhBody" class="overflow-y-auto space-y-2.5 pr-1 flex-1"></div>
+      <div class="pt-2 border-t border-slate-100">
+        <button onclick="closeModal('manageHoursModal')" class="w-full py-2.5 rounded-xl bg-slate-800 text-white font-semibold text-sm">Κλείσιμο</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 10. Modal Προγραμματισμού Επόμενου Μαθήματος & Αναμενόμενων Ωρών (Καθηγητής) -->
   <div id="scheduleModal" class="hidden fixed inset-0 bg-black/50 z-30 flex items-end sm:items-center justify-center p-4">
     <div class="bg-white w-full max-w-md rounded-2xl p-5 space-y-3.5 shadow-xl">
@@ -1636,10 +1650,10 @@
                     <h3 class="font-bold text-base mt-1 text-slate-900">${gName}</h3>
                     <p class="text-xs text-slate-600">${first.course_title_snapshot || ''}</p>
                   </div>
-                  <div class="text-right shrink-0">
-                    <div class="text-base font-extrabold text-red-800">${pkgHrs > 0 ? `${hrs}/${pkgHrs} ώρ.` : `${hrs} ώρ.`}</div>
-                    ${expHrs > 0 ? `<div class="text-[10px] text-slate-500">Στόχος: ${expHrs} ώρ.</div>` : ''}
-                  </div>
+                  <button type="button" onclick="openManageHoursModal('${first.id}', '${gid}')" title="Επεξεργασία / Ακύρωση ωρών" class="text-right shrink-0 hover:bg-red-50 rounded-xl px-2 py-1 transition cursor-pointer">
+                    <div class="text-base font-extrabold text-red-800 underline decoration-dotted underline-offset-2">${pkgHrs > 0 ? `${hrs}/${pkgHrs} ώρ.` : `${hrs} ώρ.`}</div>
+                    <div class="text-[10px] text-slate-500">${expHrs > 0 ? `Στόχος: ${expHrs} ώρ.` : '✏️ Επεξεργασία'}</div>
+                  </button>
                 </div>
 
                 <div class="space-y-1">${membersHtml}</div>
@@ -1664,9 +1678,12 @@
                     <button onclick="addPendingToGroup('${gid}')" class="px-3 py-1.5 rounded-lg bg-slate-800 text-white text-xs font-bold">Προσθήκη</button>
                   </div>` : ''}
 
-                <div class="flex gap-2 pt-1">
-                  <button onclick="openHoursModal('${first.id}', '${gid}')" class="flex-1 bg-red-800 text-white py-2.5 rounded-xl font-semibold text-sm active:scale-95 transition">
+                <div class="flex flex-wrap gap-2 pt-1">
+                  <button onclick="openHoursModal('${first.id}', '${gid}')" class="flex-1 min-w-[160px] bg-red-800 text-white py-2.5 rounded-xl font-semibold text-sm active:scale-95 transition">
                     + Προσθήκη Ωρών Τμήματος
+                  </button>
+                  <button onclick="openManageHoursModal('${first.id}', '${gid}')" class="px-3 py-2.5 rounded-xl bg-white text-slate-800 text-xs font-bold border border-slate-300 hover:bg-slate-50">
+                    ✏️ Ώρες
                   </button>
                   <button onclick="completeGroup('${gid}')" class="px-3.5 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium border border-slate-200">
                     Ολοκλήρωση
@@ -1705,7 +1722,7 @@
                     <p class="text-sm text-slate-700 font-medium">${r.course_title_snapshot || ''}</p>
                     <p class="text-xs text-slate-500">${r.institution_snapshot || s.institution || ''} • ${r.department_snapshot || s.department || ''}</p>
                   </div>
-                  <div class="text-right shrink-0">${hoursBadge}</div>
+                  <button type="button" onclick="openManageHoursModal('${r.id}')" title="Επεξεργασία / Ακύρωση ωρών" class="text-right shrink-0 hover:bg-red-50 rounded-xl px-2 py-1 transition cursor-pointer">${hoursBadge}</button>
                 </div>
 
                 <div class="flex flex-wrap items-center justify-between gap-2 text-xs bg-slate-50 px-3 py-2 rounded-xl border border-slate-100">
@@ -1719,9 +1736,12 @@
                   </div>
                 </div>
 
-                <div class="flex gap-2 pt-1">
-                  <button onclick="openHoursModal('${r.id}')" class="flex-1 bg-red-800 text-white py-2.5 rounded-xl font-semibold text-sm active:scale-95 transition">
+                <div class="flex flex-wrap gap-2 pt-1">
+                  <button onclick="openHoursModal('${r.id}')" class="flex-1 min-w-[150px] bg-red-800 text-white py-2.5 rounded-xl font-semibold text-sm active:scale-95 transition">
                     + Προσθήκη Ωρών
+                  </button>
+                  <button onclick="openManageHoursModal('${r.id}')" class="px-3 py-2.5 rounded-xl bg-white text-slate-800 text-xs font-bold border border-slate-300 hover:bg-slate-50">
+                    ✏️ Ώρες
                   </button>
                   <button onclick="completeRequest('${r.id}')" class="px-3.5 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium border border-slate-200">
                     Ολοκλήρωση
@@ -3146,6 +3166,131 @@
       closeModal('hoursModal');
       showToast(payloads.length > 1 ? `Οι ώρες καταχωρήθηκαν και στους ${payloads.length} φοιτητές του τμήματος!` : 'Οι ώρες καταχωρήθηκαν!');
       await loadAllData();
+      render();
+    }
+
+    let activeManageCtx = { reqId: null, groupId: null };
+
+    function openManageHoursModal(reqId, groupId = null) {
+      activeManageCtx = { reqId, groupId: groupId || null };
+      const r = requests.find(x => x.id === reqId);
+      if (!r) return;
+
+      document.getElementById('mhSubtitle').textContent = groupId
+        ? `Τμήμα: ${r.group_name || r.course_title_snapshot}`
+        : `${r.students?.last_name || ''} ${r.students?.first_name || ''} — ${r.course_title_snapshot}`;
+
+      const targetIds = groupId
+        ? requests.filter(x => x.group_id === groupId).map(x => x.id)
+        : [reqId];
+
+      const matchingLogs = logs
+        .filter(l => targetIds.includes(l.request_id))
+        .sort((a, b) => String(b.lesson_date || '').localeCompare(String(a.lesson_date || '')));
+
+      const bodyEl = document.getElementById('mhBody');
+      if (!matchingLogs.length) {
+        bodyEl.innerHTML = '<p class="text-center text-slate-400 text-xs py-6">Δεν υπάρχουν καταχωρημένες ώρες για αυτό το μάθημα.</p>';
+        document.getElementById('manageHoursModal').classList.remove('hidden');
+        return;
+      }
+
+      bodyEl.innerHTML = matchingLogs.map(l => {
+        const stName = l.students ? `${l.students.last_name} ${l.students.first_name}` : '';
+        return `
+          <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2 text-xs">
+            <div class="flex justify-between items-center gap-2">
+              <span class="font-bold text-slate-800">${l.lesson_date || ''} ${groupId && stName ? `• ${stName}` : ''}</span>
+              <span class="font-extrabold text-red-800">${l.hours} ώρ. (${l.num_students || 1} άτ.)</span>
+            </div>
+            ${l.content ? `<p class="text-[11px] text-slate-500">${l.content}</p>` : ''}
+            <div class="grid grid-cols-3 gap-2 items-end pt-1">
+              <div>
+                <label class="text-[10px] font-semibold text-slate-600">Ώρες</label>
+                <input id="mh_hrs_${l.id}" type="number" step="0.5" min="0.5" value="${l.hours}" class="w-full mt-0.5 border rounded-lg px-2 py-1 text-xs font-bold bg-white" />
+              </div>
+              <div>
+                <label class="text-[10px] font-semibold text-slate-600">Άτομα (1-7)</label>
+                <input id="mh_cnt_${l.id}" type="number" min="1" max="7" value="${l.num_students || 1}" class="w-full mt-0.5 border rounded-lg px-2 py-1 text-xs font-bold bg-white" />
+              </div>
+              <div class="flex gap-1">
+                <button onclick="updateLoggedHour('${l.id}')" class="flex-1 py-1.5 px-2 rounded-lg bg-red-800 text-white font-bold text-[11px]">Αποθήκευση</button>
+                <button onclick="cancelLoggedHour('${l.id}')" title="Ακύρωση καταχώρισης" class="py-1.5 px-2 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 font-bold text-[11px]">✕</button>
+              </div>
+            </div>
+          </div>`;
+      }).join('');
+
+      document.getElementById('manageHoursModal').classList.remove('hidden');
+    }
+
+    async function updateLoggedHour(logId) {
+      const l = logs.find(x => x.id === logId);
+      if (!l) return;
+      const newHrs = Number(document.getElementById(`mh_hrs_${logId}`).value);
+      const newCnt = Number(document.getElementById(`mh_cnt_${logId}`).value);
+      if (!newHrs || newHrs <= 0 || !newCnt || newCnt < 1 || newCnt > 7) {
+        alert('Βάλε έγκυρες ώρες (>0) και άτομα (1–7).');
+        return;
+      }
+
+      if (!confirm(`Είσαι σίγουρος ότι θέλεις να τροποποιήσεις την καταχώριση σε ${newHrs} ώρες (${newCnt} άτομα);`)) {
+        return;
+      }
+
+      const r = requests.find(x => x.id === l.request_id);
+      const tRatePerStudent = getTutorHourlyForGroup(newCnt);
+      const newTutorEarning = +(newHrs * tRatePerStudent).toFixed(2);
+
+      let newCharge = 0;
+      if (!l.is_promo && r) {
+        const pkgHrs = Number(r.package_hours || 0);
+        if (pkgHrs > 0) {
+          const otherHrs = logs
+            .filter(x => x.request_id === r.id && x.id !== l.id)
+            .reduce((s, x) => s + Number(x.hours || 0), 0);
+          const extraHrs = Math.max(0, (otherHrs + newHrs) - Math.max(otherHrs, pkgHrs));
+          newCharge = +(extraHrs * 25).toFixed(2);
+        } else {
+          const sRate = r.student_hourly_rate != null ? Number(r.student_hourly_rate) : 30;
+          const disc = Math.min(100, Math.max(0, Number(r.special_discount || 0)));
+          newCharge = +(newHrs * sRate * (1 - disc / 100)).toFixed(2);
+        }
+      }
+
+      const pkgHrs = Number(r?.package_hours || 0);
+      const effectiveValue = pkgHrs > 0 ? (newHrs * (Number(r?.upfront_charge || 0) / pkgHrs)) : newCharge;
+      const newUni = (!l.is_promo && l.is_unistudents && effectiveValue > 0) ? +(effectiveValue * 0.15).toFixed(2) : 0;
+      const newCenter = +(effectiveValue - newTutorEarning - newUni).toFixed(2);
+
+      const { error } = await db.from('lesson_logs').update({
+        hours: newHrs,
+        num_students: newCnt,
+        total_charge: newCharge,
+        tutor_earning: newTutorEarning,
+        unistudents_earning: newUni,
+        center_earning: newCenter
+      }).eq('id', logId);
+
+      if (error) { alert('Σφάλμα: ' + error.message); return; }
+      showToast('Η καταχώριση ωρών ενημερώθηκε!');
+      await loadAllData();
+      openManageHoursModal(activeManageCtx.reqId, activeManageCtx.groupId);
+      render();
+    }
+
+    async function cancelLoggedHour(logId) {
+      const l = logs.find(x => x.id === logId);
+      if (!l) return;
+      if (!confirm(`Είσαι σίγουρος ότι θέλεις να ακυρώσεις/διαγράψεις την καταχώριση των ${l.hours} ωρών (${l.lesson_date});`)) {
+        return;
+      }
+
+      const { error } = await db.from('lesson_logs').delete().eq('id', logId);
+      if (error) { alert('Σφάλμα: ' + error.message); return; }
+      showToast('Η καταχώριση ωρών ακυρώθηκε.');
+      await loadAllData();
+      openManageHoursModal(activeManageCtx.reqId, activeManageCtx.groupId);
       render();
     }
 
