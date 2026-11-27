@@ -56,6 +56,9 @@
         <div class="flex items-center gap-1.5 flex-wrap justify-end">
           <span id="tutorNameBadge" class="hidden bg-red-900 text-white text-xs font-semibold rounded-lg px-2.5 py-1.5 border border-red-700"></span>
           <select id="tutorSelect" class="hidden bg-red-900 text-white text-xs rounded-lg px-2 py-1.5 border border-red-700 outline-none"></select>
+          <button onclick="setTab('admin_cash')" id="homeHeaderBtn" class="hidden bg-red-950/60 text-red-100 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-red-700/60 hover:bg-red-900">
+            🏠 <span class="hidden sm:inline">Αρχική</span>
+          </button>
           <button onclick="setTab('admin_notifications')" id="notifHeaderBtn" class="hidden relative bg-red-950/60 text-red-100 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-red-700/60 hover:bg-red-900">
             🔔 <span class="hidden sm:inline">Ειδοποιήσεις</span>
             <span id="notifBadgeCount" class="hidden ml-1 px-1.5 py-0.5 rounded-full bg-amber-400 text-red-950 text-[10px] font-extrabold">0</span>
@@ -124,6 +127,19 @@
           <label class="flex items-center gap-1.5 text-xs font-medium cursor-pointer">
             <input id="mPromo" type="checkbox" onchange="updateHoursPreview()" class="w-4 h-4 rounded accent-red-800" />
             <span>Promo (0€)</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="bg-amber-50/70 border border-amber-200 rounded-xl p-2.5 space-y-1.5">
+        <label class="flex items-center gap-2 text-xs font-bold text-amber-900 cursor-pointer">
+          <input id="mLastMinuteCancel" type="checkbox" onchange="onLastMinuteCancelToggle()" class="w-4 h-4 rounded accent-red-800" />
+          <span>⚠️ Ακύρωση τελευταίας στιγμής (πληρωμή καθηγητή 1 ώρ.)</span>
+        </label>
+        <div id="mCancelChargeWrap" class="hidden pl-6">
+          <label class="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+            <input id="mCancelChargeStudent" type="checkbox" checked onchange="updateHoursPreview()" class="w-4 h-4 rounded accent-red-800" />
+            <span>Να χρεωθεί ο φοιτητής (1 ώρ.)</span>
           </label>
         </div>
       </div>
@@ -249,24 +265,25 @@
         </div>
       </div>
 
-      <!-- Τιμολόγηση & Ειδική Έκπτωση -->
-      <div class="grid grid-cols-3 gap-2 items-end">
-        <div>
-          <label class="text-[11px] font-semibold text-slate-600">Τιμολόγηση</label>
-          <select id="nrPackageSelect" onchange="onPackageChange()" class="w-full mt-1 border rounded-lg p-2 text-xs font-medium"></select>
+      <!-- Τιμολόγηση & Ειδική Έκπτωση (μόνο σε Επεξεργασία) -->
+      <div id="nrPricingBlock" class="space-y-2">
+        <div class="grid grid-cols-3 gap-2 items-end">
+          <div>
+            <label class="text-[11px] font-semibold text-slate-600">Τιμολόγηση</label>
+            <select id="nrPackageSelect" onchange="onPackageChange()" class="w-full mt-1 border rounded-lg p-2 text-xs font-medium"></select>
+          </div>
+          <div>
+            <label id="nrRateLabel" class="text-[11px] font-semibold text-slate-600">Χρέωση (€)</label>
+            <input id="nrAmountInput" type="number" step="0.5" oninput="updateNrBillingSummary()" class="w-full mt-1 border rounded-lg p-2 text-sm font-bold" />
+          </div>
+          <div>
+            <label class="text-[11px] font-semibold text-slate-600">Ειδ. Έκπτωση (%)</label>
+            <input id="nrDiscountInput" type="number" step="1" min="0" max="100" value="0" oninput="updateNrBillingSummary()" class="w-full mt-1 border rounded-lg p-2 text-sm font-bold text-rose-700" />
+          </div>
         </div>
-        <div>
-          <label id="nrRateLabel" class="text-[11px] font-semibold text-slate-600">Χρέωση (€)</label>
-          <input id="nrAmountInput" type="number" step="0.5" oninput="updateNrBillingSummary()" class="w-full mt-1 border rounded-lg p-2 text-sm font-bold" />
-        </div>
-        <div>
-          <label class="text-[11px] font-semibold text-slate-600">Ειδ. Έκπτωση (%)</label>
-          <input id="nrDiscountInput" type="number" step="1" min="0" max="100" value="0" oninput="updateNrBillingSummary()" class="w-full mt-1 border rounded-lg p-2 text-sm font-bold text-rose-700" />
-        </div>
+        <div id="nrBillingSummary" class="text-xs bg-red-50 text-red-900 border border-red-100 rounded-lg p-2.5 font-medium"></div>
+        <div id="nrPkgChangeHint" class="hidden text-[11px] bg-amber-50 text-amber-900 border border-amber-200 rounded-lg p-2"></div>
       </div>
-
-      <div id="nrBillingSummary" class="text-xs bg-red-50 text-red-900 border border-red-100 rounded-lg p-2.5 font-medium"></div>
-      <div id="nrPkgChangeHint" class="hidden text-[11px] bg-amber-50 text-amber-900 border border-amber-200 rounded-lg p-2"></div>
 
       <div class="grid grid-cols-2 gap-2 items-center bg-slate-50 px-3 py-2 rounded-lg border border-slate-200">
         <label class="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
@@ -286,6 +303,13 @@
       <div>
         <label class="text-xs font-semibold text-slate-600">Σχόλια Φοιτητή / Παρατηρήσεις</label>
         <input id="nrComments" type="text" placeholder="π.χ. Τμήμα 2 ατόμων, προτιμά απογεύματα" class="w-full mt-1 border rounded-lg p-2 text-sm" />
+      </div>
+
+      <div id="nrExtraCoursesSection" class="space-y-2 pt-1">
+        <div id="nrExtraCoursesList" class="space-y-2"></div>
+        <button type="button" onclick="addExtraCourseRow()" class="w-full py-2 rounded-xl border border-dashed border-red-300 bg-red-50/50 text-red-800 text-xs font-bold hover:bg-red-50">
+          + Προσθήκη Επιπλέον Μαθήματος (ίδιος φοιτητής)
+        </button>
       </div>
 
       <div id="nrTutorNotesWrap" class="hidden">
@@ -766,8 +790,8 @@
     let courseFilterSearch = '';
     let courseDisplayLimit = 60;
     let studentSearchQuery = '';
-    let selectedPeriod = 'ALL'; // 'ALL' | 'SEM:ΧΕΙΜ 26/27' | 'YEAR:26/27'
-    let paymentFilterPeriod = 'ALL';
+    let selectedPeriod = 'CURRENT'; // initialized to current semester in initApp()
+    let paymentFilterPeriod = 'CURRENT';
     let paymentFilterType = 'ALL';
     let paymentFilterCat = 'ALL';
     let activeDiaryStudentId = null;
@@ -1022,6 +1046,9 @@
     }
 
     async function initApp() {
+      const curSemVal = 'SEM:' + inferSemesterFromDate(new Date().toISOString().slice(0, 10));
+      if (selectedPeriod === 'CURRENT') selectedPeriod = curSemVal;
+      if (paymentFilterPeriod === 'CURRENT') paymentFilterPeriod = curSemVal;
       await loadAllData();
       userProfile = tutors.find(t => t.email && t.email.trim().toLowerCase() === currentUser.email.toLowerCase() && t.is_active !== false);
 
@@ -1040,11 +1067,13 @@
       const modeBtn = document.getElementById('modeToggleBtn');
       const expBtn = document.getElementById('exportHeaderBtn');
 
+      const homeBtn = document.getElementById('homeHeaderBtn');
       const notifBtn = document.getElementById('notifHeaderBtn');
       const schedBtn = document.getElementById('schedHeaderBtn');
       if (isAdminUser) {
         modeBtn.classList.remove('hidden');
         expBtn.classList.remove('hidden');
+        homeBtn.classList.remove('hidden');
         notifBtn.classList.remove('hidden');
         schedBtn.classList.remove('hidden');
         const activeTutors = tutors.filter(t => t.is_active !== false);
@@ -1065,6 +1094,7 @@
         currentTutorId = userProfile.id;
         modeBtn.classList.add('hidden');
         expBtn.classList.add('hidden');
+        homeBtn.classList.add('hidden');
         notifBtn.classList.add('hidden');
         schedBtn.classList.add('hidden');
         sel.classList.add('hidden');
@@ -1083,7 +1113,7 @@
         db.from('students').select('*').order('last_name'),
         db.from('requests').select('*, students(last_name, first_name, phone, email, institution, department), tutors(short_name)').order('request_number', { ascending: true }),
         db.from('lesson_logs').select('*, students(last_name, first_name), tutors(short_name)').order('lesson_date', { ascending: false }),
-        db.from('payments').select('*, students(last_name, first_name, email), tutors(short_name)').order('payment_date', { ascending: false }),
+        db.from('payments').select('*, students(last_name, first_name, email), tutors(short_name)').order('payment_date', { ascending: false }).order('id', { ascending: false }),
         db.from('pricing_packages').select('*').order('sort_order'),
         db.from('tutor_rate_tiers').select('*').order('num_students'),
         db.from('expense_categories').select('*').order('sort_order')
@@ -1302,6 +1332,7 @@
       const sel = document.getElementById('tutorSelect');
       const expBtn = document.getElementById('exportHeaderBtn');
 
+      const homeBtn = document.getElementById('homeHeaderBtn');
       const notifBtn = document.getElementById('notifHeaderBtn');
       const schedBtn = document.getElementById('schedHeaderBtn');
       if (appMode === 'admin') {
@@ -1309,6 +1340,7 @@
         sub.textContent = 'Διαχείριση & Ταμείο';
         sel.classList.add('hidden');
         expBtn.classList.remove('hidden');
+        homeBtn.classList.remove('hidden');
         notifBtn.classList.remove('hidden');
         schedBtn.classList.remove('hidden');
         currentTab = 'admin_cash';
@@ -1320,6 +1352,7 @@
         sub.textContent = 'Πίνακας Καθηγητή';
         sel.classList.remove('hidden');
         expBtn.classList.add('hidden');
+        homeBtn.classList.add('hidden');
         notifBtn.classList.add('hidden');
         schedBtn.classList.add('hidden');
         currentTab = 'active';
@@ -1414,7 +1447,7 @@
       const semReqs = requests.filter(r => matchesPeriod(r, selectedPeriod));
 
       const esoda = +semPayments
-        .filter(p => p.type === 'STUDENT_PAYMENT' || p.type === 'OTHER_INCOME')
+        .filter(p => p.type === 'STUDENT_PAYMENT')
         .reduce((s, p) => s + Number(p.amount || 0), 0).toFixed(2);
 
       const esodaApodeixi = +semPayments
@@ -1459,9 +1492,14 @@
       const netFullResult = +(expectedEsodaFull - synolikaExodaFull - estTax).toFixed(2);
       const rawCashDiff = +(esoda - (leitourgikaExoda + plirwmesKathigiton)).toFixed(2);
 
-      // Αιτήματα περιόδου
-      const reqActive = semReqs.filter(r => r.status === 'OK').length;
-      const reqPending = semReqs.filter(r => r.status === 'ΕΚΚΡΕΜΕΣ').length;
+      // Αιτήματα περιόδου (στο τρέχον εξάμηνο συμπεριλαμβάνονται και οι ενεργές/εκκρεμείς Κατατακτήριες)
+      const isCurSemSelected = selectedPeriod === ('SEM:' + inferSemesterFromDate(new Date().toISOString().slice(0, 10)));
+      const extraKatReqs = isCurSemSelected
+        ? requests.filter(r => getRecordSemester(r).startsWith('ΚΑΤΑΤΑΚΤΗΡΙΕΣ') && (r.status === 'OK' || r.status === 'ΕΚΚΡΕΜΕΣ'))
+        : [];
+      const combinedReqsForCount = Array.from(new Map([...semReqs, ...extraKatReqs].map(r => [r.id, r])).values());
+      const reqActive = combinedReqsForCount.filter(r => r.status === 'OK').length;
+      const reqPending = combinedReqsForCount.filter(r => r.status === 'ΕΚΚΡΕΜΕΣ').length;
       const reqDone = semReqs.filter(r => r.status === 'ΟΛΟΚΛΗΡΩΘΗΚΕ').length;
 
       // Ανάλυση Εξόδων περιόδου ανά κατηγορία (με δεδουλευμένες αμοιβές καθηγητών)
@@ -2008,7 +2046,8 @@
                 <td class="px-1.5 py-2 whitespace-nowrap text-center">
                   ${r.is_unistudents ? `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">ΝΑΙ</span>` : '<span class="text-slate-300">—</span>'}
                 </td>
-                <td class="px-1.5 py-2 whitespace-nowrap text-right">
+                <td class="px-1.5 py-2 whitespace-nowrap text-right space-x-1">
+                  <button onclick="copyRequestRow('${r.id}')" class="px-2 py-1 rounded-lg border border-slate-300 bg-white text-[10px] font-bold text-slate-700 hover:bg-slate-100" title="Αντιγραφή για SMS/Viber">📋</button>
                   <button onclick="openEditRequestModal('${r.id}')" class="px-2 py-1 rounded-lg border border-slate-300 bg-white text-[10px] font-bold text-slate-700 hover:bg-slate-100" title="Επεξεργασία">✏️</button>
                 </td>
               </tr>`;
@@ -2289,10 +2328,6 @@
               </div>
               <div class="flex flex-wrap justify-between items-center text-xs px-1 text-slate-600">
                 <span>Εμφανίζονται: <strong>${filteredPayments.length}</strong> κινήσεις</span>
-                <div class="flex gap-3">
-                  <span class="text-emerald-700 font-bold">Είσοδοι: +${sumIn}€</span>
-                  <span class="text-rose-700 font-bold">Έξοδοι: -${sumOut}€</span>
-                </div>
               </div>
             </div>`;
 
@@ -3025,6 +3060,9 @@
       document.getElementById('mUniWrap').classList.toggle('hidden', !showAdminFlags);
       document.getElementById('mPromoWrap').classList.toggle('hidden', !showAdminFlags);
       document.getElementById('mPromo').checked = false;
+      document.getElementById('mLastMinuteCancel').checked = false;
+      document.getElementById('mCancelChargeStudent').checked = true;
+      document.getElementById('mCancelChargeWrap').classList.add('hidden');
 
       // Υποχρεωτικό Επόμενο Μάθημα (καθαρίζεται ώστε να το δηλώσει ρητά)
       document.getElementById('mNextLessonAt').value = '';
@@ -3044,6 +3082,18 @@
       document.getElementById('hoursModal').classList.remove('hidden');
     }
 
+    function onLastMinuteCancelToggle() {
+      const isCancel = document.getElementById('mLastMinuteCancel').checked;
+      document.getElementById('mCancelChargeWrap').classList.toggle('hidden', !isCancel);
+      if (isCancel) {
+        document.getElementById('mHours').value = 1;
+        if (!document.getElementById('mContent').value.trim()) {
+          document.getElementById('mContent').value = 'Ακύρωση τελευταίας στιγμής';
+        }
+      }
+      updateHoursPreview();
+    }
+
     function updateHoursPreview() {
       const reqId = document.getElementById('mRequestId').value;
       const r = requests.find(x => x.id === reqId);
@@ -3059,8 +3109,12 @@
       let chargeNote = '';
       if (r) {
         const pkgHrs = Number(r.package_hours || 0);
+        const isLmCancel = document.getElementById('mLastMinuteCancel')?.checked;
+        const chargeOnCancel = document.getElementById('mCancelChargeStudent')?.checked;
         if (isPromo) {
           chargeNote = 'Χρέωση φοιτητή: 0€ (Promo)';
+        } else if (isLmCancel && !chargeOnCancel) {
+          chargeNote = 'Ακύρωση τελευταίας στιγμής: 0€ χρέωση φοιτητή (πληρώνεται ο καθηγητής)';
         } else if (pkgHrs > 0) {
           const used = getUsedHoursForRequest(r.id);
           const extraHrs = Math.max(0, (used + hours) - Math.max(used, pkgHrs));
@@ -3113,7 +3167,9 @@
         const isUni = isAdminUser ? document.getElementById('mUnistudents').checked : Boolean(r.is_unistudents || r.lesson_type === 'UNISTUDENTS');
         const pkgHrs = Number(r.package_hours || 0);
         let totalCharge = 0;
-        if (!isPromo) {
+        const isLmCancel = document.getElementById('mLastMinuteCancel')?.checked;
+        const chargeOnCancel = document.getElementById('mCancelChargeStudent')?.checked;
+        if (!isPromo && !(isLmCancel && !chargeOnCancel)) {
           if (pkgHrs > 0) {
             const used = getUsedHoursForRequest(r.id);
             const extraHrs = Math.max(0, (used + hours) - Math.max(used, pkgHrs));
@@ -3135,7 +3191,7 @@
           student_id: r.student_id,
           request_id: r.id,
           course_title: r.course_title_snapshot,
-          category: isPromo ? 'PROMO' : (r.lesson_type || 'ΙΔΙΑΙΤΕΡΟ ΜΑΘΗΜΑ'),
+          category: isLmCancel ? 'ΑΚΥΡΩΣΗ ΤΕΛ. ΣΤΙΓΜΗΣ' : (isPromo ? 'PROMO' : (r.lesson_type || 'ΙΔΙΑΙΤΕΡΟ ΜΑΘΗΜΑ')),
           hours,
           num_students: numStudents,
           is_unistudents: isUni,
@@ -3813,12 +3869,36 @@
       document.getElementById('nrReferralSource').value = '';
       document.getElementById('nrIsUnistudents').checked = false;
       document.getElementById('nrTutorSuggestion').classList.add('hidden');
+      document.getElementById('nrPricingBlock').classList.add('hidden');
+      document.getElementById('nrExtraCoursesSection').classList.remove('hidden');
+      document.getElementById('nrExtraCoursesList').innerHTML = '';
 
       populateNrInstitutions();
       onNrTutorChange();
       onPackageChange();
       toggleStudentMode('existing');
       document.getElementById('newRequestModal').classList.remove('hidden');
+    }
+
+    function copyRequestRow(reqId) {
+      const r = requests.find(x => x.id === reqId);
+      if (!r) return;
+      const s = r.students || {};
+      const inst = r.institution_snapshot || s.institution || '';
+      const dept = r.department_snapshot || s.department || '';
+      const tutorName = r.alt_tutor_name || r.tutors?.short_name || '—';
+      const lines = [
+        `Αίτημα #${r.request_number || '—'} (${r.status})`,
+        `Φοιτητής: ${s.last_name || ''} ${s.first_name || ''}${s.phone ? ' • Τηλ: ' + s.phone : ''}`,
+        `Σχολή: ${inst}${dept ? ' — ' + dept : ''}`,
+        `Μάθημα: ${r.course_title_snapshot || ''}`,
+        `Καθηγητής: ${tutorName}`,
+        `Πρόγραμμα: ${r.desired_program || r.lesson_type || 'Ιδιαίτερο'} • Εξάμηνο: ${getRecordSemester(r)}`,
+        r.referral_source ? `Πηγή: ${r.referral_source}` : '',
+        r.is_unistudents ? `Unistudents: ΝΑΙ` : '',
+        r.student_comments ? `Σχόλια: ${r.student_comments}` : ''
+      ].filter(Boolean).join('\n');
+      navigator.clipboard.writeText(lines).then(() => showToast('Αντιγράφηκε για SMS / Viber!'));
     }
 
     function openEditRequestModal(reqId) {
@@ -3870,6 +3950,9 @@
       document.getElementById('nrTutorNotesWrap').classList.remove('hidden');
       document.getElementById('nrTutorSuggestion').classList.add('hidden');
 
+      document.getElementById('nrPricingBlock').classList.remove('hidden');
+      document.getElementById('nrExtraCoursesSection').classList.add('hidden');
+      document.getElementById('nrExtraCoursesList').innerHTML = '';
       const hintEl = document.getElementById('nrPkgChangeHint');
       const usedHrs = getUsedHoursForRequest(r.id);
       if (Number(r.package_hours || 0) > 0 && usedHrs > 0) {
@@ -3919,6 +4002,36 @@
         document.getElementById('nrBillingSummary').textContent =
           `Ωριαία χρέωση: ${netPrice}€/ώρα${discText}`;
       }
+    }
+
+    function addExtraCourseRow() {
+      const list = document.getElementById('nrExtraCoursesList');
+      const activeTutors = tutors.filter(t => t.is_active !== false);
+      const rowId = 'ec_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+      const div = document.createElement('div');
+      div.id = rowId;
+      div.className = 'nr-extra-course bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2';
+      div.innerHTML = `
+        <div class="flex justify-between items-center">
+          <span class="text-xs font-bold text-red-800">Επιπλέον Μάθημα</span>
+          <button type="button" onclick="document.getElementById('${rowId}').remove()" class="text-xs font-bold text-rose-700 hover:underline">✕ Αφαίρεση</button>
+        </div>
+        <input type="text" class="ec-title w-full border rounded-lg p-2 text-xs bg-white font-medium" placeholder="Τίτλος Μαθήματος *" />
+        <div class="grid grid-cols-2 gap-2">
+          <select class="ec-tutor border rounded-lg p-2 text-xs bg-white">
+            <option value="">— Καθηγητής —</option>
+            ${activeTutors.map(t => `<option value="${t.id}">${t.short_name}</option>`).join('')}
+          </select>
+          <select class="ec-prog border rounded-lg p-2 text-xs bg-white font-semibold">
+            <option value="ΙΔΙΑΙΤΕΡΟ">Ιδιαίτερο</option>
+            <option value="ΤΜΗΜΑ">Τμήμα</option>
+            <option value="ΠΑΚΕΤΟ">Πακέτο</option>
+            <option value="ΙΔΙΑΙΤΕΡΟ Ή ΤΜΗΜΑ">Ιδιαίτερο ή Τμήμα</option>
+          </select>
+        </div>
+        <input type="text" class="ec-comments w-full border rounded-lg p-2 text-xs bg-white" placeholder="Σχόλια για το μάθημα..." />
+      `;
+      list.appendChild(div);
     }
 
     async function saveNewRequest() {
@@ -4015,7 +4128,23 @@
         }
       } else {
         payload.status = 'ΕΚΚΡΕΜΕΣ';
-        ({ error } = await db.from('requests').insert(payload));
+        const rowsToInsert = [payload];
+        document.querySelectorAll('#nrExtraCoursesList .nr-extra-course').forEach(el => {
+          const tTitle = el.querySelector('.ec-title')?.value.trim().toUpperCase();
+          if (!tTitle) return;
+          const tTutor = el.querySelector('.ec-tutor')?.value || null;
+          const tProg = el.querySelector('.ec-prog')?.value || 'ΙΔΙΑΙΤΕΡΟ';
+          const tComm = el.querySelector('.ec-comments')?.value.trim() || null;
+          rowsToInsert.push({
+            ...payload,
+            course_title_snapshot: tTitle,
+            tutor_id: tTutor,
+            alt_tutor_name: null,
+            desired_program: tProg,
+            student_comments: tComm
+          });
+        });
+        ({ error } = await db.from('requests').insert(rowsToInsert));
       }
 
       if (error) { alert('Σφάλμα αιτήματος: ' + error.message); return; }
