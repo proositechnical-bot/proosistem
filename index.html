@@ -2126,7 +2126,13 @@
 
             return `
               <tr class="border-b border-slate-100 hover:bg-slate-50/80 align-top ${alarm ? 'bg-red-50/40' : ''}">
-                <td class="px-1.5 py-2 font-extrabold text-slate-600 whitespace-nowrap">#${r.request_number || '—'}</td>
+                <td class="px-1.5 py-2 font-extrabold text-slate-600 whitespace-nowrap">
+                  <div>#${r.request_number || '—'}</div>
+                  <div class="flex gap-1 mt-1">
+                    <button onclick="copyRequestRow('${r.id}')" class="px-1.5 py-0.5 rounded border border-slate-300 bg-white text-[10px] font-bold text-slate-700 hover:bg-slate-100" title="Αντιγραφή για SMS/Viber">📋</button>
+                    <button onclick="openEditRequestModal('${r.id}')" class="px-1.5 py-0.5 rounded border border-slate-300 bg-white text-[10px] font-bold text-slate-700 hover:bg-slate-100" title="Επεξεργασία">✏️</button>
+                  </div>
+                </td>
                 <td class="px-1.5 py-2 whitespace-nowrap">
                   <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${statusCls}">${r.status}</span>
                   ${pendingBadge}
@@ -3707,7 +3713,7 @@ Please consider the environment before printing this email.`;
 
     function copyPostLessonEmail() {
       const body = document.getElementById('pleBody').value;
-      navigator.clipboard.writeText(body).then(() => showToast('Το κείμενο του email αντιγράφηκε!'));
+      copyTextToClipboard(body, 'Το κείμενο του email αντιγράφηκε!');
     }
 
     let activeManageCtx = { reqId: null, groupId: null };
@@ -3980,7 +3986,7 @@ Please consider the environment before printing this email.`;
       if (!n || !n.details || !n.details.includes('__EMAIL_JSON__:')) return;
       try {
         const meta = JSON.parse(n.details.split('__EMAIL_JSON__:')[1]);
-        navigator.clipboard.writeText(meta.body || '').then(() => showToast('Το κείμενο του email αντιγράφηκε!'));
+        copyTextToClipboard(meta.body || '', 'Το κείμενο του email αντιγράφηκε!');
       } catch (e) { alert('Σφάλμα αντιγραφής.'); }
     }
 
@@ -4388,6 +4394,38 @@ Please consider the environment before printing this email.`;
       document.getElementById('newRequestModal').classList.remove('hidden');
     }
 
+    function copyTextToClipboard(text, successMsg = 'Αντιγράφηκε!') {
+      const fallbackCopy = () => {
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.setAttribute('readonly', '');
+          ta.style.position = 'fixed';
+          ta.style.top = '0';
+          ta.style.left = '-9999px';
+          document.body.appendChild(ta);
+          ta.focus();
+          ta.select();
+          ta.setSelectionRange(0, text.length);
+          const ok = document.execCommand('copy');
+          document.body.removeChild(ta);
+          if (ok) {
+            showToast(successMsg);
+          } else {
+            window.prompt('Αντίγραψε το κείμενο:', text);
+          }
+        } catch (e) {
+          window.prompt('Αντίγραψε το κείμενο:', text);
+        }
+      };
+
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(() => showToast(successMsg)).catch(fallbackCopy);
+      } else {
+        fallbackCopy();
+      }
+    }
+
     function copyRequestRow(reqId) {
       const r = requests.find(x => x.id === reqId);
       if (!r) return;
@@ -4407,7 +4445,7 @@ Please consider the environment before printing this email.`;
         r.is_unistudents ? `🎓 Unistudents: ΝΑΙ` : '',
         r.student_comments ? `📝 Σχόλια: ${r.student_comments}` : ''
       ].filter(Boolean).join('\n');
-      navigator.clipboard.writeText(lines).then(() => showToast('Αντιγράφηκε για SMS / Viber!'));
+      copyTextToClipboard(lines, 'Αντιγράφηκε για SMS / Viber!');
     }
 
     function openEditRequestModal(reqId) {
