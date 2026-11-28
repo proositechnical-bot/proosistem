@@ -4396,15 +4396,16 @@ Please consider the environment before printing this email.`;
       const dept = r.department_snapshot || s.department || '';
       const tutorName = r.alt_tutor_name || r.tutors?.short_name || '—';
       const lines = [
-        `Αίτημα #${r.request_number || '—'} (${r.status})`,
-        `Φοιτητής: ${s.last_name || ''} ${s.first_name || ''}${s.phone ? ' • Τηλ: ' + s.phone : ''}`,
-        `Σχολή: ${inst}${dept ? ' — ' + dept : ''}`,
-        `Μάθημα: ${r.course_title_snapshot || ''}`,
-        `Καθηγητής: ${tutorName}`,
-        `Πρόγραμμα: ${r.desired_program || r.lesson_type || 'Ιδιαίτερο'} • Εξάμηνο: ${getRecordSemester(r)}`,
-        r.referral_source ? `Πηγή: ${r.referral_source}` : '',
-        r.is_unistudents ? `Unistudents: ΝΑΙ` : '',
-        r.student_comments ? `Σχόλια: ${r.student_comments}` : ''
+        `📋 Αίτημα #${r.request_number || '—'} (${r.status})`,
+        `👤 Φοιτητής: ${s.last_name || ''} ${s.first_name || ''}`,
+        s.phone ? `📞 Τηλέφωνο: ${s.phone}` : '',
+        `🏛️ Σχολή: ${inst}${dept ? ' — ' + dept : ''}`,
+        `📚 Μάθημα: ${r.course_title_snapshot || ''}`,
+        `👨‍🏫 Καθηγητής: ${tutorName}`,
+        `📅 Εξάμηνο: ${getRecordSemester(r)}`,
+        r.referral_source ? `📣 Πηγή: ${r.referral_source}` : '',
+        r.is_unistudents ? `🎓 Unistudents: ΝΑΙ` : '',
+        r.student_comments ? `📝 Σχόλια: ${r.student_comments}` : ''
       ].filter(Boolean).join('\n');
       navigator.clipboard.writeText(lines).then(() => showToast('Αντιγράφηκε για SMS / Viber!'));
     }
