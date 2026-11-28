@@ -177,6 +177,58 @@
     </div>
   </div>
 
+
+  <!-- 1b. Modal Έτοιμου Email μετά το Μάθημα -->
+  <div id="postLessonEmailModal" class="hidden fixed inset-0 bg-black/50 z-40 flex items-end sm:items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white w-full max-w-lg rounded-2xl p-5 space-y-3 shadow-xl my-auto max-h-[92vh] overflow-y-auto">
+      <div class="flex justify-between items-start gap-2">
+        <div>
+          <h2 class="font-bold text-lg text-slate-900">✉️ Έτοιμο Email Μαθήματος</h2>
+          <p class="text-xs text-slate-500">Οι ώρες αποθηκεύτηκαν! Έλεγξε το email, άνοιξέ το και επισύναψε τις σημειώσεις/ασκήσεις.</p>
+        </div>
+        <button onclick="closeModal('postLessonEmailModal')" class="text-slate-400 hover:text-slate-700 font-bold text-lg leading-none px-1">✕</button>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div>
+          <label class="text-[11px] font-semibold text-slate-600">Προς (Φοιτητής)</label>
+          <input id="pleTo" type="text" placeholder="email@student.gr" class="w-full mt-0.5 border rounded-lg p-2 text-xs bg-slate-50 font-medium" />
+        </div>
+        <div>
+          <label class="text-[11px] font-semibold text-slate-600">Κρυφή Κοινοποίηση (BCC)</label>
+          <input id="pleBcc" type="text" value="info@proosistem.gr" class="w-full mt-0.5 border rounded-lg p-2 text-xs bg-slate-50 font-medium" />
+        </div>
+      </div>
+
+      <div>
+        <label class="text-[11px] font-semibold text-slate-600">Θέμα (Subject)</label>
+        <input id="pleSubject" type="text" class="w-full mt-0.5 border rounded-lg p-2 text-xs font-semibold" />
+      </div>
+
+      <div>
+        <label class="text-[11px] font-semibold text-slate-600">Κείμενο Email (επεξεργάσιμο)</label>
+        <textarea id="pleBody" rows="13" class="w-full mt-0.5 border rounded-lg p-2.5 text-xs font-sans leading-relaxed bg-white"></textarea>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+        <button onclick="openPostLessonMailto()" class="py-2.5 px-3 rounded-xl bg-red-800 text-white font-bold text-xs shadow-sm active:scale-95 transition">
+          ✉️ Άνοιγμα στην Εφαρμογή Email
+        </button>
+        <button onclick="openPostLessonGmail()" class="py-2.5 px-3 rounded-xl bg-emerald-700 text-white font-bold text-xs shadow-sm active:scale-95 transition">
+          📧 Άνοιγμα σε Gmail Web
+        </button>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="copyPostLessonEmail()" class="flex-1 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-bold text-xs">
+          📋 Αντιγραφή Κειμένου
+        </button>
+        <button onclick="closeModal('postLessonEmailModal')" class="px-5 py-2 rounded-xl border border-slate-300 text-slate-600 font-semibold text-xs">
+          Κλείσιμο
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- 2. Modal Νέου / Επεξεργασίας Αιτήματος & Φοιτητή (Admin) -->
   <div id="newRequestModal" class="hidden fixed inset-0 bg-black/50 z-30 flex items-end sm:items-center justify-center p-3 overflow-y-auto">
     <div class="bg-white w-full max-w-lg rounded-2xl p-5 space-y-3 shadow-xl my-auto max-h-[92vh] overflow-y-auto">
@@ -3505,11 +3557,158 @@
         : `${primaryReq.students?.last_name || ''} ${primaryReq.students?.first_name || ''} — ${primaryReq.course_title_snapshot}`;
       await logNotification('LOG_HOURS', `${actorName} κατέγραψε ${hours} ώρ. μαθήματος`, `${targetDesc} (${lessonDate})`);
 
+      const wasLmCancel = Boolean(document.getElementById('mLastMinuteCancel')?.checked);
+      const emailCtx = {
+        targets,
+        primaryReq,
+        lessonDate,
+        hours,
+        contentTxt,
+        nextLessonAt: nextNotSet ? null : nextLessonAt
+      };
+
       activeHoursGroupId = null;
       closeModal('hoursModal');
       showToast(payloads.length > 1 ? `Οι ώρες καταχωρήθηκαν και στους ${payloads.length} φοιτητές του τμήματος!` : 'Οι ώρες καταχωρήθηκαν!');
       await loadAllData();
       render();
+
+      if (!wasLmCancel) {
+        openPostLessonEmailModal(emailCtx);
+      }
+    }
+
+    function formatGreekNextLessonLine(dtLocalStr, durationHours = 2) {
+      if (!dtLocalStr) return '';
+      const d = new Date(dtLocalStr);
+      if (isNaN(d.getTime())) return dtLocalStr;
+      const days = ['Κυριακή', 'Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή', 'Σάββατο'];
+      const dayName = days[d.getDay()];
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const yyyy = d.getFullYear();
+      const startH = String(d.getHours()).padStart(2, '0');
+      const startM = String(d.getMinutes()).padStart(2, '0');
+      const durMs = Math.max(0.5, Number(durationHours || 2)) * 60 * 60 * 1000;
+      const dEnd = new Date(d.getTime() + durMs);
+      const endH = String(dEnd.getHours()).padStart(2, '0');
+      const endM = String(dEnd.getMinutes()).padStart(2, '0');
+      return `${dayName} ${dd}/${mm}/${yyyy} και ώρα ${startH}:${startM} - ${endH}:${endM}`;
+    }
+
+    function openPostLessonEmailModal(ctx) {
+      const { targets, primaryReq, lessonDate, hours, contentTxt, nextLessonAt } = ctx;
+      const toEmails = Array.from(new Set(targets.map(r => r.students?.email).filter(Boolean))).join(',');
+      const courseTitle = (primaryReq.course_title_snapshot || 'Μάθημα').trim();
+
+      // Συγκέντρωση προγραμματισμένων επόμενων μαθημάτων (τρέχον + τυχόν άλλα ενεργά μαθήματα του ίδιου φοιτητή με τον ίδιο καθηγητή)
+      const nextEntries = [];
+      if (nextLessonAt) {
+        nextEntries.push({
+          dt: nextLessonAt,
+          course: courseTitle,
+          dur: hours || 2
+        });
+      }
+      if (targets.length === 1 && primaryReq.student_id) {
+        const now = new Date();
+        requests
+          .filter(x =>
+            x.id !== primaryReq.id &&
+            x.student_id === primaryReq.student_id &&
+            x.tutor_id === currentTutorId &&
+            x.status === 'OK' &&
+            x.next_lesson_at
+          )
+          .forEach(other => {
+            const oDt = new Date(other.next_lesson_at);
+            if (!isNaN(oDt.getTime()) && oDt >= now) {
+              nextEntries.push({
+                dt: other.next_lesson_at,
+                course: (other.course_title_snapshot || '').trim(),
+                dur: 2
+              });
+            }
+          });
+      }
+
+      let nextBlock = '';
+      if (nextEntries.length) {
+        nextBlock = nextEntries.map((item, idx) => {
+          const line = formatGreekNextLessonLine(item.dt, item.dur);
+          if (idx === 0) {
+            return `Επόμενο προγραμματισμένο μάθημα: ${line}
+(${item.course})`;
+          }
+          return `            ${line}
+(${item.course})`;
+        }).join('
+');
+      } else {
+        nextBlock = `Επόμενο προγραμματισμένο μάθημα: Θα οριστεί κατόπιν συνεννόησης
+(${courseTitle})`;
+      }
+
+      const [yy, mm, dd] = String(lessonDate || '').split('-');
+      const dLabel = (dd && mm && yy) ? `${dd}/${mm}/${yy}` : lessonDate;
+
+      const subject = `${courseTitle} - Σημειώσεις Μαθήματος (${dLabel})`;
+      const body =
+`Καλησπέρα
+
+Σήμερα είδαμε: ${contentTxt || '—'}
+
+Επισυνάπτω: 1) Σημειώσεις του σημερινού μαθήματος
+            2) Ασκήσεις προς επίλυση
+
+${nextBlock}
+
+Καλή μελέτη.
+
+Ευχαριστώ.
+
+Χαιρετισμούς,
+
+ΠΡΟΩΣΗ STEM
+Πανεπιστημιακά Μαθήματα
+Παπαστράτου 67, Πειραιάς 185 45
+2104446072, 2130461847, 6972411226
+info@proosistem.gr
+www.proosistem.gr
+
+"Αγάπη για την επιστήμη σου,
+πτυχίο στην ώρα σου!"
+
+Please consider the environment before printing this email.`;
+
+      document.getElementById('pleTo').value = toEmails;
+      document.getElementById('pleBcc').value = 'info@proosistem.gr';
+      document.getElementById('pleSubject').value = subject;
+      document.getElementById('pleBody').value = body;
+      document.getElementById('postLessonEmailModal').classList.remove('hidden');
+    }
+
+    function openPostLessonMailto() {
+      const to = document.getElementById('pleTo').value.trim();
+      const bcc = document.getElementById('pleBcc').value.trim();
+      const subject = document.getElementById('pleSubject').value.trim();
+      const body = document.getElementById('pleBody').value;
+      const bccPart = bcc ? `&bcc=${encodeURIComponent(bcc)}` : '';
+      window.open(`mailto:${to}?subject=${encodeURIComponent(subject)}${bccPart}&body=${encodeURIComponent(body)}`, '_blank');
+    }
+
+    function openPostLessonGmail() {
+      const to = document.getElementById('pleTo').value.trim();
+      const bcc = document.getElementById('pleBcc').value.trim();
+      const subject = document.getElementById('pleSubject').value.trim();
+      const body = document.getElementById('pleBody').value;
+      const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&bcc=${encodeURIComponent(bcc)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      window.open(url, '_blank');
+    }
+
+    function copyPostLessonEmail() {
+      const body = document.getElementById('pleBody').value;
+      navigator.clipboard.writeText(body).then(() => showToast('Το κείμενο του email αντιγράφηκε!'));
     }
 
     let activeManageCtx = { reqId: null, groupId: null };
