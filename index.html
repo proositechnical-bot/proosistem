@@ -11,6 +11,16 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    @media print {
+      header, nav, .no-print { display: none !important; }
+      body { background: #ffffff !important; padding-bottom: 0 !important; }
+      main { max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
+      .kpi-card { break-inside: avoid; page-break-inside: avoid; box-shadow: none !important; border: 1px solid #cbd5e1 !important; }
+      canvas { max-width: 100% !important; }
+    }
+  </style>
 </head>
 <body class="bg-slate-100 text-slate-800 pb-24">
 
@@ -825,6 +835,7 @@
     let courseDisplayLimit = 60;
     let studentSearchQuery = '';
     let selectedPeriod = 'CURRENT'; // initialized to current semester in initApp()
+    let kpiPeriod = 'CURRENT';
     let paymentFilterPeriod = 'CURRENT';
     let paymentFilterType = 'ALL';
     let paymentFilterCat = 'ALL';
@@ -1083,6 +1094,7 @@
       const curSemVal = 'SEM:' + inferSemesterFromDate(new Date().toISOString().slice(0, 10));
       if (selectedPeriod === 'CURRENT') selectedPeriod = curSemVal;
       if (paymentFilterPeriod === 'CURRENT') paymentFilterPeriod = curSemVal;
+      if (kpiPeriod === 'CURRENT') kpiPeriod = curSemVal;
       await loadAllData();
       userProfile = tutors.find(t => t.email && t.email.trim().toLowerCase() === currentUser.email.toLowerCase() && t.is_active !== false);
 
@@ -1429,10 +1441,11 @@
             { id: 'admin_tutors', label: 'Καθηγητές' },
             { id: 'admin_courses', label: 'Μαθήματα' },
             { id: 'admin_prices', label: 'Τιμές' },
+            { id: 'admin_kpis', label: 'KPIs' },
             { id: 'admin_guide', label: 'Οδηγός' }
           ];
 
-      const gridClass = tabs.length === 3 ? 'grid-cols-3' : 'grid-cols-4 sm:grid-cols-8';
+      const gridClass = tabs.length === 3 ? 'grid-cols-3' : 'grid-cols-3 sm:grid-cols-9';
       nav.innerHTML = `<div class="max-w-5xl mx-auto grid ${gridClass} text-[10px] sm:text-[11px] font-medium">` +
         tabs.map(t => `
           <button onclick="setTab('${t.id}')" class="py-3 px-0.5 flex flex-col items-center gap-1 ${currentTab === t.id ? 'text-red-800 border-t-2 border-red-800 font-bold' : 'text-slate-500'}">
@@ -1638,7 +1651,7 @@
       const container = document.getElementById('content');
       const mainEl = document.getElementById('mainContainer');
       if (mainEl) {
-        const isWide = appMode === 'admin' && (currentTab === 'admin_requests' || currentTab === 'admin_courses');
+        const isWide = appMode === 'admin' && (currentTab === 'admin_requests' || currentTab === 'admin_courses' || currentTab === 'admin_kpis');
         mainEl.className = isWide
           ? 'w-full max-w-[1600px] mx-auto px-2.5 sm:px-4 py-3 space-y-3'
           : 'max-w-5xl mx-auto p-4 space-y-4';
@@ -2679,6 +2692,229 @@
               </div>
               <div class="divide-y divide-slate-100">${catRows}</div>
             </div>`;
+        }
+
+        else if (currentTab === 'admin_kpis') {
+          const kpiData = computeKpisData(kpiPeriod);
+          const periodLabel = kpiPeriod === 'ALL'
+            ? 'Συνολικά (Όλα τα Εξάμηνα)'
+            : kpiPeriod.startsWith('YEAR:')
+              ? `Ακαδημαϊκό Έτος ${kpiPeriod.slice(5)}`
+              : `Εξάμηνο ${kpiPeriod.slice(4)}`;
+
+          const tutorReqRows = kpiData.tutorTotalReqs.map((x, i) => `
+            <tr class="border-b border-slate-100">
+              <td class="px-2 py-1.5 text-slate-400 font-semibold">${i + 1}</td>
+              <td class="px-2 py-1.5 font-bold text-slate-800">${x.name}</td>
+              <td class="px-2 py-1.5 text-right font-extrabold text-slate-900">${x.count}</td>
+              <td class="px-2 py-1.5 text-right text-slate-600">${x.pct}%</td>
+            </tr>`).join('');
+
+          const tutorSatRows = kpiData.tutorSatisfied.map((x, i) => `
+            <tr class="border-b border-slate-100">
+              <td class="px-2 py-1.5 text-slate-400 font-semibold">${i + 1}</td>
+              <td class="px-2 py-1.5 font-bold text-slate-800">${x.name}</td>
+              <td class="px-2 py-1.5 text-right font-extrabold text-emerald-700">${x.count}</td>
+              <td class="px-2 py-1.5 text-right text-slate-600">${x.pct}%</td>
+            </tr>`).join('');
+
+          const tutorRateRows = kpiData.tutorSatRate.map((x, i) => `
+            <tr class="border-b border-slate-100">
+              <td class="px-2 py-1.5 text-slate-400 font-semibold">${i + 1}</td>
+              <td class="px-2 py-1.5 font-bold text-slate-800">${x.name}</td>
+              <td class="px-2 py-1.5 text-right text-slate-600">${x.satisfied}/${x.total}</td>
+              <td class="px-2 py-1.5 text-right font-extrabold ${Number(x.rate) >= 60 ? 'text-emerald-700' : 'text-amber-700'}">${x.rate}%</td>
+            </tr>`).join('');
+
+          const expRows = kpiData.expenseBreakdown.map(x => `
+            <tr class="border-b border-slate-100">
+              <td class="px-2 py-1.5 font-bold text-slate-800">${x.category}</td>
+              <td class="px-2 py-1.5 text-right font-extrabold text-rose-700">${x.amount} €</td>
+              <td class="px-2 py-1.5 text-right text-slate-600">${x.pct}%</td>
+            </tr>`).join('');
+
+          container.innerHTML = `
+            <!-- Toolbar (No Print) -->
+            <div class="no-print bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-2.5">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-xs font-bold text-slate-700">Περίοδος KPIs:</span>
+                <select onchange="kpiPeriod = this.value; render();" class="border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 bg-slate-50 outline-none">
+                  ${buildPeriodOptionsHtml(kpiPeriod, true)}
+                </select>
+              </div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <button onclick="window.print()" class="bg-red-800 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm active:scale-95 transition">
+                  🖨️ Λήψη PDF Παρουσίασης
+                </button>
+                <button onclick="exportKpisExcel()" class="bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm active:scale-95 transition">
+                  📥 Εξαγωγή Excel (KPIs)
+                </button>
+              </div>
+            </div>
+
+            <!-- Presentation Header Banner -->
+            <div class="kpi-card bg-red-800 text-white rounded-2xl p-5 flex flex-wrap items-center justify-between gap-3 shadow-sm">
+              <div class="flex items-center gap-3">
+                <img src="proosi stem_original (1).jpg" alt="ΠΡΟΩΣΗ STEM" class="w-12 h-12 rounded-2xl object-contain bg-white p-1 shadow-sm" />
+                <div>
+                  <h2 class="text-lg sm:text-xl font-extrabold tracking-wide">ΠΡΟΩΣΗ STEM — ΣΥΓΚΕΝΤΡΩΤΙΚΑ ΑΠΟΤΕΛΕΣΜΑΤΑ & KPIs</h2>
+                  <p class="text-xs text-red-100 mt-0.5">${periodLabel} • Ημερομηνία εξαγωγής: ${new Date().toISOString().slice(0, 10)}</p>
+                </div>
+              </div>
+              <div class="text-right">
+                <p class="text-[11px] text-red-200">Συνολικά Αιτήματα / Ικανοποίηση</p>
+                <p class="text-2xl font-extrabold">${kpiData.totalRequests} <span class="text-sm font-bold text-emerald-200">(${kpiData.overallSatRate}% ικανοπ.)</span></p>
+              </div>
+            </div>
+
+            <!-- 1. Οικονομικοί Δείκτες, Κόστος & Έξοδα -->
+            <div class="kpi-card bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+              <h3 class="font-extrabold text-sm text-red-800 uppercase tracking-wide">1. Οικονομικοί Δείκτες, Κόστος & Αποδοτικότητα</h3>
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                  <p class="text-[11px] text-slate-500 font-semibold">Τζίρος Περιόδου</p>
+                  <p class="text-lg font-extrabold text-slate-900 mt-0.5">${kpiData.fin.turnover} €</p>
+                  <p class="text-[10px] text-slate-500">Εισπράξεις: ${kpiData.fin.esoda} €</p>
+                </div>
+                <div class="bg-rose-50/70 border border-rose-200 rounded-xl p-3">
+                  <p class="text-[11px] text-rose-800 font-semibold">Κόστος Καθηγητών</p>
+                  <p class="text-lg font-extrabold text-rose-700 mt-0.5">${kpiData.fin.tutorCost} €</p>
+                  <p class="text-[10px] text-rose-700/80">${kpiData.fin.tutorCostPct}% του τζίρου</p>
+                </div>
+                <div class="bg-orange-50/70 border border-orange-200 rounded-xl p-3">
+                  <p class="text-[11px] text-orange-900 font-semibold">Λειτουργικά Έξοδα</p>
+                  <p class="text-lg font-extrabold text-orange-700 mt-0.5">${kpiData.fin.opExpenses} €</p>
+                  <p class="text-[10px] text-orange-800/80">${kpiData.fin.opExpPct}% του τζίρου</p>
+                </div>
+                <div class="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3">
+                  <p class="text-[11px] text-emerald-900 font-semibold">Καθαρό Αποτέλεσμα</p>
+                  <p class="text-lg font-extrabold ${kpiData.fin.netResult >= 0 ? 'text-emerald-700' : 'text-red-700'} mt-0.5">${kpiData.fin.netResult >= 0 ? '+' : ''}${kpiData.fin.netResult} €</p>
+                  <p class="text-[10px] text-emerald-800">Περιθώριο: ${kpiData.fin.profitMargin}% • Φόρος: ${kpiData.fin.estTax}€</p>
+                </div>
+                <div class="bg-blue-50/60 border border-blue-200 rounded-xl p-3">
+                  <p class="text-[11px] text-blue-900 font-semibold">Συνολικές Ώρες Μαθημάτων</p>
+                  <p class="text-lg font-extrabold text-blue-800 mt-0.5">${kpiData.fin.totalHours} ώρ.</p>
+                  <p class="text-[10px] text-blue-700">Μοναδικοί φοιτητές: ${kpiData.uniqueStudents}</p>
+                </div>
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                  <p class="text-[11px] text-slate-500 font-semibold">Μέσο Έσοδο / Ώρα</p>
+                  <p class="text-lg font-extrabold text-slate-900 mt-0.5">${kpiData.fin.revPerHour} €/ώρ</p>
+                  <p class="text-[10px] text-slate-500">Τζίρος ÷ Συνολ. ώρες</p>
+                </div>
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                  <p class="text-[11px] text-slate-500 font-semibold">Συνολικό Κόστος / Ώρα</p>
+                  <p class="text-lg font-extrabold text-rose-700 mt-0.5">${kpiData.fin.costPerHour} €/ώρ</p>
+                  <p class="text-[10px] text-slate-500">Αμοιβές + Λειτ. Έξοδα</p>
+                </div>
+                <div class="bg-indigo-50/60 border border-indigo-200 rounded-xl p-3">
+                  <p class="text-[11px] text-indigo-900 font-semibold">Unistudents (15%)</p>
+                  <p class="text-lg font-extrabold text-indigo-700 mt-0.5">${kpiData.fin.uniCost} €</p>
+                  <p class="text-[10px] text-indigo-700/80">${kpiData.uniRequestsCount} αιτήματα Uni</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- 2. Ανάλυση Εξόδων & Κόστους ανά Κατηγορία -->
+            <div class="kpi-card bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+              <h3 class="font-extrabold text-sm text-red-800 uppercase tracking-wide">2. Ανάλυση Εξόδων & Αμοιβών ανά Κατηγορία</h3>
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-center">
+                <div class="h-64"><canvas id="kpiChartExpenses"></canvas></div>
+                <div class="overflow-x-auto">
+                  <table class="w-full text-left text-xs border-collapse">
+                    <thead class="bg-slate-800 text-white text-[10px] uppercase">
+                      <tr>
+                        <th class="px-2 py-2">Κατηγορία</th>
+                        <th class="px-2 py-2 text-right">Ποσό (€)</th>
+                        <th class="px-2 py-2 text-right">Ποσοστό</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${expRows || '<tr><td colspan="3" class="text-center text-slate-400 py-4">Δεν υπάρχουν έξοδα στην περίοδο.</td></tr>'}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. Συνολικός Αριθμός Αιτημάτων ανά Καθηγητή -->
+            <div class="kpi-card bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+              <h3 class="font-extrabold text-sm text-slate-900 uppercase tracking-wide">3. Συνολικός Αριθμός Αιτημάτων ανά Καθηγητή (Σύνολο: ${kpiData.totalRequests})</h3>
+              <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+                <div class="lg:col-span-2 h-72"><canvas id="kpiChartTutorTotal"></canvas></div>
+                <div class="overflow-x-auto max-h-72 overflow-y-auto">
+                  <table class="w-full text-left text-xs border-collapse">
+                    <thead class="bg-slate-800 text-white text-[10px] uppercase sticky top-0">
+                      <tr><th class="px-2 py-1.5">#</th><th class="px-2 py-1.5">Καθηγητής</th><th class="px-2 py-1.5 text-right">Αιτήματα</th><th class="px-2 py-1.5 text-right">%</th></tr>
+                    </thead>
+                    <tbody>${tutorReqRows || '<tr><td colspan="4" class="text-center text-slate-400 py-4">Χωρίς δεδομένα</td></tr>'}</tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- 4. Ικανοποιηθέντα Αιτήματα ανά Καθηγητή -->
+            <div class="kpi-card bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+              <h3 class="font-extrabold text-sm text-emerald-800 uppercase tracking-wide">4. Ικανοποιηθέντα Αιτήματα ανά Καθηγητή (OK + Ολοκληρωμένα: ${kpiData.totalSatisfied})</h3>
+              <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+                <div class="lg:col-span-2 h-72"><canvas id="kpiChartTutorSat"></canvas></div>
+                <div class="overflow-x-auto max-h-72 overflow-y-auto">
+                  <table class="w-full text-left text-xs border-collapse">
+                    <thead class="bg-emerald-800 text-white text-[10px] uppercase sticky top-0">
+                      <tr><th class="px-2 py-1.5">#</th><th class="px-2 py-1.5">Καθηγητής</th><th class="px-2 py-1.5 text-right">Ικανοπ.</th><th class="px-2 py-1.5 text-right">%</th></tr>
+                    </thead>
+                    <tbody>${tutorSatRows || '<tr><td colspan="4" class="text-center text-slate-400 py-4">Χωρίς δεδομένα</td></tr>'}</tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- 5. Ποσοστό Ικανοποίησης Αιτημάτων ανά Καθηγητή -->
+            <div class="kpi-card bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+              <h3 class="font-extrabold text-sm text-blue-900 uppercase tracking-wide">5. Ποσοστό Ικανοποίησης Αιτημάτων ανά Καθηγητή (%)</h3>
+              <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+                <div class="lg:col-span-2 h-72"><canvas id="kpiChartTutorRate"></canvas></div>
+                <div class="overflow-x-auto max-h-72 overflow-y-auto">
+                  <table class="w-full text-left text-xs border-collapse">
+                    <thead class="bg-blue-900 text-white text-[10px] uppercase sticky top-0">
+                      <tr><th class="px-2 py-1.5">#</th><th class="px-2 py-1.5">Καθηγητής</th><th class="px-2 py-1.5 text-right">Ικ./Συν.</th><th class="px-2 py-1.5 text-right">%</th></tr>
+                    </thead>
+                    <tbody>${tutorRateRows || '<tr><td colspan="4" class="text-center text-slate-400 py-4">Χωρίς δεδομένα</td></tr>'}</tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- 6. Κατάσταση Αιτημάτων & Πηγές Προέλευσης -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="kpi-card bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-2">
+                <h3 class="font-extrabold text-sm text-slate-900 uppercase tracking-wide">6. Κατάσταση Αιτημάτων</h3>
+                <div class="h-64"><canvas id="kpiChartStatus"></canvas></div>
+              </div>
+              <div class="kpi-card bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-2">
+                <h3 class="font-extrabold text-sm text-slate-900 uppercase tracking-wide">7. Πηγές Προέλευσης (Πώς μας βρήκαν)</h3>
+                <div class="h-64"><canvas id="kpiChartReferral"></canvas></div>
+              </div>
+            </div>
+
+            <!-- 7. Φοιτητές / Αιτήματα ανά Ίδρυμα -->
+            <div class="kpi-card bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-2">
+              <h3 class="font-extrabold text-sm text-slate-900 uppercase tracking-wide">8. Αιτήματα ανά Ίδρυμα</h3>
+              <div class="h-72"><canvas id="kpiChartInst"></canvas></div>
+            </div>
+
+            <!-- 8. Αιτήματα ανά Σχολή & Ικανοποιηθέντα ανά Σχολή -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div class="kpi-card bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-2">
+                <h3 class="font-extrabold text-sm text-slate-900 uppercase tracking-wide">9. Αιτήματα ανά Σχολή</h3>
+                <div class="h-72"><canvas id="kpiChartDept"></canvas></div>
+              </div>
+              <div class="kpi-card bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-2">
+                <h3 class="font-extrabold text-sm text-emerald-800 uppercase tracking-wide">10. Ικανοποιηθέντα Αιτήματα ανά Σχολή</h3>
+                <div class="h-72"><canvas id="kpiChartDeptSat"></canvas></div>
+              </div>
+            </div>`;
+
+          renderKpiCharts(kpiData);
         }
 
         else if (currentTab === 'admin_guide') {
@@ -4961,6 +5197,226 @@
       const today = new Date().toISOString().slice(0, 10);
       XLSX.writeFile(wb, `PROOSI_FULL_BACKUP_${today}.xlsx`);
       showToast(`Κατέβηκε το πλήρες backup PROOSI_FULL_BACKUP_${today}.xlsx`);
+    }
+
+
+    // --- KPIs COMPUTATION, CHARTS & EXCEL EXPORT ---
+    window._kpiCharts = [];
+
+    function computeKpisData(periodVal) {
+      const baseReqs = requests.filter(r => matchesPeriod(r, periodVal));
+      const isCurSemKpi = periodVal === ('SEM:' + inferSemesterFromDate(new Date().toISOString().slice(0, 10)));
+      const extraKatKpiReqs = isCurSemKpi
+        ? requests.filter(r => getRecordSemester(r).startsWith('ΚΑΤΑΤΑΚΤΗΡΙΕΣ') && (r.status === 'OK' || r.status === 'ΕΚΚΡΕΜΕΣ'))
+        : [];
+      const pReqs = Array.from(new Map([...baseReqs, ...extraKatKpiReqs].map(r => [r.id, r])).values());
+      const pLogs = logs.filter(l => matchesPeriod(l, periodVal));
+      const pPays = payments.filter(p => matchesPeriod(p, periodVal));
+
+      const isSatisfied = r => r.status === 'OK' || r.status === 'ΟΛΟΚΛΗΡΩΘΗΚΕ';
+      const totalRequests = pReqs.length;
+      const totalSatisfied = pReqs.filter(isSatisfied).length;
+      const overallSatRate = totalRequests > 0 ? ((totalSatisfied / totalRequests) * 100).toFixed(1) : '0.0';
+      const uniqueStudents = new Set(pReqs.map(r => r.student_id).filter(Boolean)).size;
+      const uniRequestsCount = pReqs.filter(r => r.is_unistudents).length;
+
+      // Per tutor stats
+      const tMap = {};
+      pReqs.forEach(r => {
+        const tName = (r.tutors?.short_name || r.alt_tutor_name || 'ΧΩΡΙΣ ΑΝΑΘΕΣΗ').trim();
+        if (!tMap[tName]) tMap[tName] = { name: tName, total: 0, satisfied: 0 };
+        tMap[tName].total += 1;
+        if (isSatisfied(r)) tMap[tName].satisfied += 1;
+      });
+      const tArr = Object.values(tMap);
+      const tutorTotalReqs = [...tArr].sort((a, b) => b.total - a.total).map(x => ({
+        name: x.name,
+        count: x.total,
+        pct: totalRequests > 0 ? ((x.total / totalRequests) * 100).toFixed(1) : '0.0'
+      }));
+      const tutorSatisfied = [...tArr].filter(x => x.satisfied > 0).sort((a, b) => b.satisfied - a.satisfied).map(x => ({
+        name: x.name,
+        count: x.satisfied,
+        pct: totalSatisfied > 0 ? ((x.satisfied / totalSatisfied) * 100).toFixed(1) : '0.0'
+      }));
+      const tutorSatRate = [...tArr].filter(x => x.total > 0).map(x => ({
+        name: x.name,
+        total: x.total,
+        satisfied: x.satisfied,
+        rate: ((x.satisfied / x.total) * 100).toFixed(1)
+      })).sort((a, b) => Number(b.rate) - Number(a.rate) || b.satisfied - a.satisfied);
+
+      // Status breakdown
+      const statusCounts = {
+        'ΙΚΑΝΟΠΟΙΗΘΗΚΑΝ (OK/ΟΛΟΚΛ.)': totalSatisfied,
+        'ΕΚΚΡΕΜΕΣ': pReqs.filter(r => r.status === 'ΕΚΚΡΕΜΕΣ').length,
+        'ΑΚΥΡΩΘΗΚΕ': pReqs.filter(r => r.status === 'ΑΚΥΡΩΘΗΚΕ').length
+      };
+
+      // Referral sources
+      const refMap = {};
+      pReqs.forEach(r => {
+        const rf = (r.referral_source || 'ΜΗ ΔΗΛΩΜΕΝΟ').trim();
+        refMap[rf] = (refMap[rf] || 0) + 1;
+      });
+      const referrals = Object.entries(refMap).sort((a, b) => b[1] - a[1]);
+
+      // By Institution
+      const instMap = {};
+      pReqs.forEach(r => {
+        const inst = (r.institution_snapshot || r.students?.institution || 'ΑΛΛΟ').trim();
+        instMap[inst] = (instMap[inst] || 0) + 1;
+      });
+      const byInst = Object.entries(instMap).sort((a, b) => b[1] - a[1]);
+
+      // By Department (School)
+      const deptMap = {};
+      const deptSatMap = {};
+      pReqs.forEach(r => {
+        const inst = (r.institution_snapshot || r.students?.institution || '').trim();
+        const dept = (r.department_snapshot || r.students?.department || 'ΑΛΛΗ ΣΧΟΛΗ').trim();
+        const key = inst ? `${dept} (${inst})` : dept;
+        deptMap[key] = (deptMap[key] || 0) + 1;
+        if (isSatisfied(r)) deptSatMap[key] = (deptSatMap[key] || 0) + 1;
+      });
+      const byDept = Object.entries(deptMap).sort((a, b) => b[1] - a[1]).slice(0, 15);
+      const byDeptSat = Object.entries(deptSatMap).sort((a, b) => b[1] - a[1]).slice(0, 15);
+
+      // Financial & Cost KPIs
+      const upfront = pReqs.filter(r => r.status !== 'ΑΚΥΡΩΘΗΚΕ').reduce((s, r) => s + Number(r.upfront_charge || 0), 0);
+      const hourly = pLogs.reduce((s, l) => s + Number(l.total_charge || 0), 0);
+      const turnover = +(upfront + hourly).toFixed(2);
+      const esoda = +pPays.filter(p => p.type === 'STUDENT_PAYMENT').reduce((s, p) => s + Number(p.amount || 0), 0).toFixed(2);
+      const esodaApod = +pPays.filter(p => p.type === 'STUDENT_PAYMENT' && p.receipt_type === 'ΜΕ ΑΠΟΔΕΙΞΗ').reduce((s, p) => s + Number(p.amount || 0), 0).toFixed(2);
+      const opExpenses = +pPays.filter(p => p.type === 'EXPENSE').reduce((s, p) => s + Number(p.amount || 0), 0).toFixed(2);
+      const exodaTim = +pPays.filter(p => p.type === 'EXPENSE' && p.has_invoice).reduce((s, p) => s + Number(p.amount || 0), 0).toFixed(2);
+      const tutorCost = +pLogs.reduce((s, l) => s + Number(l.tutor_earning || 0), 0).toFixed(2);
+      const uniCost = +pLogs.reduce((s, l) => s + Number(l.unistudents_earning || 0), 0).toFixed(2);
+      const totalHours = +pLogs.reduce((s, l) => s + Number(l.hours || 0), 0).toFixed(2);
+      const estTax = +(Math.max(0, esodaApod - exodaTim) * 0.22).toFixed(2);
+      const totalCost = +(opExpenses + tutorCost).toFixed(2);
+      const netResult = +(turnover - totalCost - estTax).toFixed(2);
+
+      const tutorCostPct = turnover > 0 ? ((tutorCost / turnover) * 100).toFixed(1) : '0.0';
+      const opExpPct = turnover > 0 ? ((opExpenses / turnover) * 100).toFixed(1) : '0.0';
+      const profitMargin = turnover > 0 ? ((netResult / turnover) * 100).toFixed(1) : '0.0';
+      const revPerHour = totalHours > 0 ? (turnover / totalHours).toFixed(2) : '0.00';
+      const costPerHour = totalHours > 0 ? (totalCost / totalHours).toFixed(2) : '0.00';
+
+      // Expense breakdown by category (including accrued tutor fees)
+      const catTotals = {};
+      pPays.filter(p => p.type === 'EXPENSE').forEach(p => {
+        const c = getPaymentExpenseCategory(p);
+        catTotals[c] = +((catTotals[c] || 0) + Number(p.amount || 0)).toFixed(2);
+      });
+      if (tutorCost > 0) catTotals['ΑΜΟΙΒΕΣ ΚΑΘΗΓΗΤΩΝ'] = tutorCost;
+      const expenseBreakdown = Object.entries(catTotals)
+        .sort((a, b) => b[1] - a[1])
+        .map(([category, amount]) => ({
+          category,
+          amount,
+          pct: totalCost > 0 ? ((amount / totalCost) * 100).toFixed(1) : '0.0'
+        }));
+
+      return {
+        totalRequests, totalSatisfied, overallSatRate, uniqueStudents, uniRequestsCount,
+        tutorTotalReqs, tutorSatisfied, tutorSatRate,
+        statusCounts, referrals, byInst, byDept, byDeptSat,
+        expenseBreakdown,
+        fin: { turnover, esoda, opExpenses, tutorCost, uniCost, totalHours, estTax, totalCost, netResult, tutorCostPct, opExpPct, profitMargin, revPerHour, costPerHour }
+      };
+    }
+
+    function renderKpiCharts(d) {
+      if (typeof Chart === 'undefined') return;
+      (window._kpiCharts || []).forEach(ch => ch.destroy());
+      window._kpiCharts = [];
+
+      const mkBar = (canvasId, labels, values, color, suffix = '') => {
+        const el = document.getElementById(canvasId);
+        if (!el) return;
+        window._kpiCharts.push(new Chart(el, {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [{ data: values, backgroundColor: color, borderRadius: 6 }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              y: { beginAtZero: true, ticks: { callback: v => suffix ? `${v}${suffix}` : v } },
+              x: { ticks: { font: { size: 10 }, maxRotation: 45, minRotation: 0 } }
+            }
+          }
+        }));
+      };
+
+      const mkDoughnut = (canvasId, labels, values, colors) => {
+        const el = document.getElementById(canvasId);
+        if (!el) return;
+        window._kpiCharts.push(new Chart(el, {
+          type: 'doughnut',
+          data: { labels, datasets: [{ data: values, backgroundColor: colors }] },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'right', labels: { font: { size: 11 } } } }
+          }
+        }));
+      };
+
+      mkBar('kpiChartExpenses', d.expenseBreakdown.map(x => x.category), d.expenseBreakdown.map(x => x.amount), '#991b1b', '€');
+      mkBar('kpiChartTutorTotal', d.tutorTotalReqs.map(x => x.name), d.tutorTotalReqs.map(x => x.count), '#2563eb');
+      mkBar('kpiChartTutorSat', d.tutorSatisfied.map(x => x.name), d.tutorSatisfied.map(x => x.count), '#059669');
+      mkBar('kpiChartTutorRate', d.tutorSatRate.map(x => x.name), d.tutorSatRate.map(x => Number(x.rate)), '#1d4ed8', '%');
+      mkDoughnut('kpiChartStatus', Object.keys(d.statusCounts), Object.values(d.statusCounts), ['#10b981', '#f59e0b', '#ef4444']);
+      mkDoughnut('kpiChartReferral', d.referrals.map(x => x[0]), d.referrals.map(x => x[1]), ['#991b1b', '#2563eb', '#10b981', '#f59e0b', '#6366f1', '#ec4899', '#64748b', '#14b8a6']);
+      mkBar('kpiChartInst', d.byInst.map(x => x[0]), d.byInst.map(x => x[1]), '#3b82f6');
+      mkBar('kpiChartDept', d.byDept.map(x => x[0]), d.byDept.map(x => x[1]), '#2563eb');
+      mkBar('kpiChartDeptSat', d.byDeptSat.map(x => x[0]), d.byDeptSat.map(x => x[1]), '#059669');
+    }
+
+    function exportKpisExcel() {
+      if (typeof XLSX === 'undefined') { alert('Η βιβλιοθήκη Excel δεν φορτώθηκε ακόμα.'); return; }
+      const d = computeKpisData(kpiPeriod);
+      const wb = XLSX.utils.book_new();
+
+      const summarySheet = [
+        { 'Δείκτης': 'Περίοδος', 'Τιμή': kpiPeriod },
+        { 'Δείκτης': 'Συνολικά Αιτήματα', 'Τιμή': d.totalRequests },
+        { 'Δείκτης': 'Ικανοποιηθέντα Αιτήματα (OK + Ολοκληρωμένα)', 'Τιμή': d.totalSatisfied },
+        { 'Δείκτης': 'Συνολικό Ποσοστό Ικανοποίησης (%)', 'Τιμή': d.overallSatRate + '%' },
+        { 'Δείκτης': 'Μοναδικοί Φοιτητές', 'Τιμή': d.uniqueStudents },
+        { 'Δείκτης': 'Συνολικές Ώρες Μαθημάτων', 'Τιμή': d.fin.totalHours },
+        { 'Δείκτης': 'Τζίρος Περιόδου (€)', 'Τιμή': d.fin.turnover },
+        { 'Δείκτης': 'Εισπράξεις Φοιτητών (€)', 'Τιμή': d.fin.esoda },
+        { 'Δείκτης': 'Κόστος Καθηγητών (€)', 'Τιμή': d.fin.tutorCost },
+        { 'Δείκτης': 'Κόστος Καθηγητών (% Τζίρου)', 'Τιμή': d.fin.tutorCostPct + '%' },
+        { 'Δείκτης': 'Λειτουργικά Έξοδα (€)', 'Τιμή': d.fin.opExpenses },
+        { 'Δείκτης': 'Λειτουργικά Έξοδα (% Τζίρου)', 'Τιμή': d.fin.opExpPct + '%' },
+        { 'Δείκτης': 'Εκτιμώμενος Φόρος 22% (€)', 'Τιμή': d.fin.estTax },
+        { 'Δείκτης': 'Καθαρό Αποτέλεσμα (€)', 'Τιμή': d.fin.netResult },
+        { 'Δείκτης': 'Περιθώριο Κέρδους (%)', 'Τιμή': d.fin.profitMargin + '%' },
+        { 'Δείκτης': 'Μέσο Έσοδο / Ώρα (€)', 'Τιμή': d.fin.revPerHour },
+        { 'Δείκτης': 'Συνολικό Κόστος / Ώρα (€)', 'Τιμή': d.fin.costPerHour }
+      ];
+
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summarySheet), 'Οικονομικά KPIs');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(d.expenseBreakdown.map(x => ({ 'Κατηγορία': x.category, 'Ποσό (€)': x.amount, 'Ποσοστό (%)': x.pct }))), 'Έξοδα ανά Κατηγορία');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(d.tutorTotalReqs.map(x => ({ 'Καθηγητής': x.name, 'Αιτήματα': x.count, 'Ποσοστό (%)': x.pct }))), 'Αιτήματα Καθηγητών');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(d.tutorSatisfied.map(x => ({ 'Καθηγητής': x.name, 'Ικανοποιηθέντα': x.count, 'Ποσοστό (%)': x.pct }))), 'Ικανοποιηθέντα');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(d.tutorSatRate.map(x => ({ 'Καθηγητής': x.name, 'Ικανοποιηθέντα': x.satisfied, 'Σύνολο': x.total, 'Ποσοστό (%)': x.rate }))), 'Ποσοστό Ικανοποίησης');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(d.byInst.map(([k, v]) => ({ 'Ίδρυμα': k, 'Αιτήματα': v }))), 'Ανά Ίδρυμα');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(d.byDept.map(([k, v]) => ({ 'Σχολή': k, 'Αιτήματα': v }))), 'Ανά Σχολή');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(d.byDeptSat.map(([k, v]) => ({ 'Σχολή': k, 'Ικανοποιηθέντα': v }))), 'Ικανοπ. ανά Σχολή');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(d.referrals.map(([k, v]) => ({ 'Πηγή': k, 'Αιτήματα': v }))), 'Πηγές Προέλευσης');
+
+      const safePeriod = kpiPeriod.replace(/[^a-zA-Z0-9Α-Ωα-ω_-]/g, '_');
+      const today = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(wb, `PROOSI_KPIs_${safePeriod}_${today}.xlsx`);
+      showToast('Κατέβηκε το αρχείο Excel με τα KPIs!');
     }
 
     checkSession();
